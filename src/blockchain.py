@@ -1,0 +1,376 @@
+# -*- coding: utf-8 -*-
+"""
+区块链交互模块
+"""
+import json
+import os
+import traceback
+from web3 import Web3
+from .enums import Rarity
+class BlockchainManager:
+    """区块链管理器"""
+    def __init__(self, account_index: int = 0):
+        self.blockchain_available = False
+        self.offline_reason = ""
+        self.w3 = None
+        self.contract = None
+        self.contract_abi = None
+        self.account = "0x0000000000000000000000000000000000000000"
+        self.contract_address = "N/A"
+        self.rpc_url = os.getenv("RPC_URL", "http://127.0.0.1:8545")
+        self.account_index = account_index
+        self.contract_owner = None
+        self.contract_owner_available = False
+    def _load_json_with_fallback(self, candidates, description):
+        """从多个候选路径中加载 JSON，返回 (数据, 使用的路径)"""
+        errors = []
+        for path in candidates:
+            try:
+                with open(path, 'r', encoding='utf-8') as f:
+                    return json.load(f), path
+            except FileNotFoundError:
+                errors.append(f"{path}: 文件不存在")
+            except json.JSONDecodeError as err:
+                errors.append(f"{path}: JSON 解析失败 ({err})")
+        detail = " | ".join(errors)
+        raise FileNotFoundError(f"{description} 未找到，已尝试: {', '.join(candidates)}. {detail}")
+    def _resolve_contract_address(self, candidates):
+        """寻找包含已部署合约地址的文件，返回 (checksum 地址, 合约信息, 路径)"""
+        errors = []
+        for path in candidates:
+            try:
+                with open(path, 'r', encoding='utf-8') as f:
+                    info = json.load(f)
+            except FileNotFoundError:
+                errors.append(f"{path}: 文件不存在")
+                continue
+            raw_address = info.get('address')
+            if not raw_address:
+                errors.append(f"{path}: 缺少 address 字段")
+                continue
+            try:
+                checksum = self.w3.to_checksum_address(raw_address)
+            except Exception as err:
+                errors.append(f"{path}: 地址无效 ({raw_address}) -> {err}")
+                continue
+            code = self.w3.eth.get_code(checksum)
+            if code and any(byte != 0 for byte in code):
+                return checksum, info, path
+            errors.append(f"{path}: 地址 {raw_address} 上没有已部署合约")
+        detail = " | ".join(errors)
+        raise RuntimeError(f"无法找到可用的合约地址。请重新部署合约。详情: {detail}")
+    def setup(self):
+        """设置区块链连接"""
+        try:
+            print(f"🔌 正在连接区块链 RPC: {self.rpc_url}")
+            self.w3 = Web3(Web3.HTTPProvider(self.rpc_url, request_kwargs={"timeout": 5}))
+            try:
+                block_number = self.w3.eth.block_number
+                print(f"✅ 连接到区块链网络，最新区块: {block_number}")
+            except Exception as block_err:
+                raise RuntimeError(f"无法获取区块高度: {block_err}") from block_err
+            abi_data, abi_path = self._load_json_with_fallback(
+                ["WeedCutterNFT.json", "scripts/WeedCutterNFT.json"],
+                "合约 ABI"
+            )
+            self.contract_abi = abi_data['abi']
+            if abi_path != "WeedCutterNFT.json":
+                print(f"⚠️ 使用备用 ABI 文件: {abi_path}")
+            self.contract_address, contract_info, info_path = self._resolve_contract_address(
+                ["contract-info.json", "scripts/contract-info.json"]
+            )
+            if info_path != "contract-info.json":
+                print(f"⚠️ 主目录 contract-info.json 未同步，已使用 {info_path}")
+            self.contract = self.w3.eth.contract(
+                address=self.contract_address,
+                abi=self.contract_abi
+            )
+            available_accounts = self.w3.eth.accounts
+            if not available_accounts:
+                raise RuntimeError("当前 RPC 没有可用账户 (did you start Hardhat?)")
+            idx = max(0, min(self.account_index, len(available_accounts) - 1))
+            if idx != self.account_index:
+                print(f"⚠️ 请求的账户索引 {self.account_index} 超出范围，已回落到 {idx}")
+            self.account = available_accounts[idx]
+            print(f"使用账户[{idx}]: {self.account}")
+            try:
+                self.contract_owner = self.contract.functions.owner().call()
+                self.contract_owner_available = self.contract_owner in available_accounts
+                if self.contract_owner_available:
+                    print(f"🤝 合约所有者: {self.contract_owner}")
+                else:
+                    print(f"⚠️ 合约所有者 {self.contract_owner} 不在本地账户列表，铸造可能受限")
+            except Exception as owner_err:
+                print(f"⚠️ 无法读取合约所有者: {owner_err}")
+                self.contract_owner_available = False
+            self.blockchain_available = True
+        except Exception as e:
+            print(f"❌ 区块链设置失败，进入离线模式: {e}")
+            traceback.print_exc()
+            self.blockchain_available = False
+            self.offline_reason = f"{e} (RPC: {self.rpc_url})"
+            print("提示: 请确保 Hardhat 节点运行并部署合约后再重开游戏。")
+    def load_player_weapons(self, account, weapon_display_name_func):
+        """从区块链加载玩家武器"""
+        if not self.blockchain_available:
+            return [], []
+        try:
+            weapon_ids = self.contract.functions.getUserWeapons(account).call()
+            owned = []
+            for weapon_id in weapon_ids:
+                weapon_data = self.contract.functions.getWeaponDetails(weapon_id).call()
+                display_name = weapon_display_name_func(
+                    weapon_data[1],
+                    Rarity(weapon_data[2])
+                )
+                weapon = {
+                    'id': weapon_data[0],
+                    'name': display_name,
+                    'original_name': weapon_data[1],
+                    'rarity': Rarity(weapon_data[2]),
+                    'damage_multiplier': weapon_data[3] / 100.0,
+                    'owner': weapon_data[4],
+                    'price': weapon_data[5],
+                    'coin_price': weapon_data[6],
+                    'for_sale': weapon_data[7]
+                }
+                owned.append(weapon)
+            owned.sort(key=lambda w: (-w['rarity'].value, w['id']))
+            listed_weapons = [w for w in owned if w['for_sale']]
+            weapons = [w for w in owned if not w['for_sale']]
+            print(f"加载了 {len(owned)} 把武器，其中 {len(listed_weapons)} 把已上架")
+            return weapons, listed_weapons
+        except Exception as e:
+            print(f"加载玩家武器失败: {e}")
+            return [], []
+    def load_player_stats(self, account):
+        """加载玩家统计数据"""
+        if not self.blockchain_available:
+            return 0, 0
+        try:
+            return self.contract.functions.getPlayerStats(account).call()
+        except Exception as e:
+            print(f"加载玩家数据失败: {e}")
+            return 0, 0
+    def record_score(self, account, points):
+        """记录分数到区块链"""
+        if not self.blockchain_available or points <= 0:
+            return False
+        try:
+            tx = self.contract.functions.recordWeedCut(points).build_transaction({
+                'from': account,
+                'gas': 180000,
+                'gasPrice': self.w3.to_wei('2', 'gwei'),
+                'nonce': self.w3.eth.get_transaction_count(account)
+            })
+            tx_hash = self.w3.eth.send_transaction(tx)
+            print(f"⏳ 正在上链累计分数 {points} tx={tx_hash.hex()}")
+            receipt = self.w3.eth.wait_for_transaction_receipt(tx_hash)
+            status = getattr(receipt, 'status', 1)
+            if status == 1:
+                print("✅ 分数上链成功")
+                return True
+            else:
+                print("❌ 分数交易失败")
+                return False
+        except Exception as e:
+            print(f"记录分数失败: {e}")
+            return False
+    def mint_weapon(self, account, name, rarity_value, damage_multiplier):
+        """铸造武器"""
+        if not self.blockchain_available:
+            return False
+        try:
+            tx = self.contract.functions.mintWeaponWithCoins(
+                name,
+                rarity_value,
+                damage_multiplier
+            ).build_transaction({
+                'from': account,
+                'gas': 350000,
+                'gasPrice': self.w3.to_wei('2', 'gwei'),
+                'nonce': self.w3.eth.get_transaction_count(account)
+            })
+            tx_hash = self.w3.eth.send_transaction(tx)
+            print(f"⏳ 铸造交易发送: {tx_hash.hex()} 等待确认...")
+            receipt = self.w3.eth.wait_for_transaction_receipt(tx_hash)
+            status = getattr(receipt, 'status', 1)
+            if status == 1:
+                print("✅ 铸造成功")
+                return True
+            else:
+                print("❌ 铸造交易失败")
+                return False
+        except Exception as err:
+            print(f"铸造失败: {err}")
+            return False
+    def purchase_weapon(self, account, weapon_id, price):
+        """购买武器（使用ETH）"""
+        if not self.blockchain_available:
+            return False
+        try:
+            tx = self.contract.functions.purchaseWeapon(weapon_id).build_transaction({
+                'from': account,
+                'value': price,
+                'gas': 300000,
+                'gasPrice': self.w3.to_wei('2', 'gwei'),
+                'nonce': self.w3.eth.get_transaction_count(account)
+            })
+            tx_hash = self.w3.eth.send_transaction(tx)
+            print(f"⏳ 购买交易发送: {tx_hash.hex()} 等待确认...")
+            receipt = self.w3.eth.wait_for_transaction_receipt(tx_hash)
+            status = getattr(receipt, 'status', 1)
+            if status == 1:
+                print("✅ 购买成功")
+                return True
+            else:
+                print("❌ 购买交易失败")
+                return False
+        except Exception as err:
+            print(f"购买失败: {err}")
+            return False
+
+    def purchase_weapon_with_coins(self, account, weapon_id, coin_price):
+        """购买武器（使用金币）"""
+        if not self.blockchain_available:
+            return False
+        try:
+            tx = self.contract.functions.purchaseWeaponWithCoins(weapon_id, coin_price).build_transaction({
+                'from': account,
+                'gas': 300000,
+                'gasPrice': self.w3.to_wei('2', 'gwei'),
+                'nonce': self.w3.eth.get_transaction_count(account)
+            })
+            tx_hash = self.w3.eth.send_transaction(tx)
+            print(f"⏳ 用金币购买武器: {tx_hash.hex()} 等待确认...")
+            receipt = self.w3.eth.wait_for_transaction_receipt(tx_hash)
+            status = getattr(receipt, 'status', 1)
+            if status == 1:
+                print("✅ 用金币购买成功")
+                return True
+            else:
+                print("❌ 购买交易失败")
+                return False
+        except Exception as err:
+            print(f"购买失败: {err}")
+            return False
+
+    def list_weapon_for_sale(self, account, weapon_id, price_wei):
+        """上架武器"""
+        if not self.blockchain_available:
+            return False
+        try:
+            tx = self.contract.functions.listWeaponForSale(weapon_id, price_wei).build_transaction({
+                'from': account,
+                'gas': 250000,
+                'gasPrice': self.w3.to_wei('2', 'gwei'),
+                'nonce': self.w3.eth.get_transaction_count(account)
+            })
+            tx_hash = self.w3.eth.send_transaction(tx)
+            print(f"⏳ 上架交易发送: {tx_hash.hex()} 等待确认...")
+            receipt = self.w3.eth.wait_for_transaction_receipt(tx_hash)
+            status = getattr(receipt, 'status', 1)
+            if status == 1:
+                print("✅ 上架成功")
+                return True
+            else:
+                print("❌ 上架交易失败")
+                return False
+        except Exception as err:
+            print(f"上架失败: {err}")
+            return False
+    def load_market_weapons(self, weapon_display_name_func):
+        """加载市场武器"""
+        if not self.blockchain_available:
+            return []
+        try:
+            sale_list = []
+            try:
+                sale_list = self.contract.functions.getWeaponsForSale().call()
+            except Exception:
+                total_next = self.contract.functions.getNextWeaponId().call()
+                for weapon_id in range(1, total_next):
+                    wdata = self.contract.functions.getWeaponDetails(weapon_id).call()
+                    if wdata[6]:  # forSale
+                        sale_list.append(wdata)
+            market_weapons = []
+            for w in sale_list:
+                display_name = weapon_display_name_func(w[1], Rarity(w[2]))
+                market_weapons.append({
+                    'id': w[0],
+                    'name': display_name,
+                    'original_name': w[1],
+                    'rarity': Rarity(w[2]),
+                    'damage_multiplier': w[3] / 100.0,
+                    'owner': w[4],
+                    'price': w[5],
+                    'coin_price': w[6],
+                    'for_sale': w[7]
+                })
+            market_weapons.sort(key=lambda w: (w['coin_price'] if w['coin_price'] > 0 else 999999, -w['rarity'].value))
+            print(f"✅ 市场已刷新，当前 {len(market_weapons)} 把在售")
+            return market_weapons
+        except Exception as e:
+            print(f"加载市场数据失败: {e}")
+            return []
+
+    def set_player_name(self, account, name):
+        """设置玩家名称"""
+        if not self.blockchain_available:
+            return False
+        try:
+            tx = self.contract.functions.setPlayerName(name).build_transaction({
+                'from': account,
+                'gas': 100000,
+                'gasPrice': self.w3.to_wei('2', 'gwei'),
+                'nonce': self.w3.eth.get_transaction_count(account)
+            })
+            tx_hash = self.w3.eth.send_transaction(tx)
+            print(f"⏳ 设置玩家名称: {tx_hash.hex()}")
+            receipt = self.w3.eth.wait_for_transaction_receipt(tx_hash)
+            return getattr(receipt, 'status', 1) == 1
+        except Exception as e:
+            print(f"设置名称失败: {e}")
+            return False
+
+    def get_player_name(self, account):
+        """获取玩家名称"""
+        if not self.blockchain_available:
+            return ""
+        try:
+            return self.contract.functions.playerNames(account).call()
+        except Exception as e:
+            print(f"获取名称失败: {e}")
+            return ""
+
+    def get_leaderboard(self, count=10):
+        """获取排行榜"""
+        if not self.blockchain_available:
+            return []
+        try:
+            addresses, names, scores, ranks = self.contract.functions.getLeaderboard(count).call()
+            leaderboard = []
+            for i in range(len(addresses)):
+                leaderboard.append({
+                    'rank': ranks[i],
+                    'address': addresses[i],
+                    'name': names[i] if names[i] else f"玩家{addresses[i][:6]}",
+                    'score': scores[i]
+                })
+            return leaderboard
+        except Exception as e:
+            print(f"获取排行榜失败: {e}")
+            return []
+
+    def get_player_rank(self, account):
+        """获取玩家排名"""
+        if not self.blockchain_available:
+            return 0, 0
+        try:
+            rank, total = self.contract.functions.getPlayerRank(account).call()
+            return rank, total
+        except Exception as e:
+            print(f"获取排名失败: {e}")
+            return 0, 0
+
+
