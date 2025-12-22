@@ -4,16 +4,12 @@ import sys
 import random
 import math
 import json
-import os
-import pytmx
-from pytmx.util_pygame import load_pygame
+from decimal import Decimal
 from web3 import Web3
 from enum import Enum
-import logging
 
 # 初始化pygame
 pygame.init()
-logging.basicConfig(level=logging.INFO, format="[%(asctime)s] %(levelname)s %(message)s")
 
 # ---------------- 中文字体加载增强 ----------------
 # 动态尝试多种常见中文字体，若不可用则回退到默认字体；可在 assets/fonts 下放自定义 TTF
@@ -28,7 +24,7 @@ FONT_CANDIDATES = [
     "microsoft yahei",    # 微软雅黑
     "arial unicode ms",   # Arial Unicode
 ]
-
+TEXT_MAIN = (225, 235, 245)
 def load_chinese_font(size: int):
     available = set(pygame.font.get_fonts())  # 全部小写
     # 允许使用本地 assets 字体文件（若用户自行放置）
@@ -60,10 +56,26 @@ def load_chinese_font(size: int):
     print(f"⚠️ 未找到合适中文字体，回退默认字体 size={size}. 建议安装：fonts-wqy-microhei 或 fonts-noto-cjk")
     return pygame.font.Font(None, size)
 
+def draw_panel(surface, rect, title=None):
+    pygame.draw.rect(surface, PANEL, rect, border_radius=10)
+    pygame.draw.rect(surface, PANEL_BORDER, rect, 2, border_radius=10)
+    if title:
+        t = small_font.render(title, True, ACCENT_BLUE)
+        surface.blit(t, (rect.x + 10, rect.y - 18))
+
+
+def draw_label(surface, label, pos, value=None, value_color=TEXT_MAIN):
+    l = small_font.render(label, True, TEXT_DIM)
+    surface.blit(l, pos)
+    if value is not None:
+        v = small_font.render(str(value), True, value_color)
+        surface.blit(v, (pos[0] + 90, pos[1]))
+
+
 # 屏幕设置
 WIDTH, HEIGHT = 1200, 800
 screen = pygame.display.set_mode((WIDTH, HEIGHT))
-pygame.display.set_caption("区块链��转除草NFT游戏")
+pygame.display.set_caption("区块链旋转除草NFT游戏")
 
 # 颜色定义
 WHITE = (255, 255, 255)
@@ -78,93 +90,21 @@ GOLD = (255, 215, 0)
 GRAY = (128, 128, 128)
 DARK_GREEN = (0, 100, 0)
 
+# UI 主题色
+BG_DARK = (18, 22, 28)
+PANEL = (28, 32, 40)
+PANEL_BORDER = (70, 90, 120)
+TEXT_MAIN = (225, 235, 245)
+TEXT_DIM = (160, 175, 190)
+ACCENT_BLUE = (64, 156, 255)
+SUCCESS_GREEN = (80, 200, 120)
+WARNING_RED = (240, 90, 90)
+
+
 # 字体 (改为动态中文字体加载)
 font = load_chinese_font(20)
 large_font = load_chinese_font(32)
 small_font = load_chinese_font(16)
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-DEFAULT_TMX_PATH = os.path.join(BASE_DIR, "kenney_roguelike-rpg-pack", "Map", "sample_map.tmx")
-
-
-class TileMap:
-    def __init__(self, tmx_path: str):
-        if not os.path.exists(tmx_path):
-            raise FileNotFoundError(f"未找到 TMX 地图: {tmx_path}")
-        self.tmx_data = load_pygame(tmx_path)
-        self.pixel_width = self.tmx_data.width * self.tmx_data.tilewidth
-        self.pixel_height = self.tmx_data.height * self.tmx_data.tileheight
-        self.surface = pygame.Surface((self.pixel_width, self.pixel_height), pygame.SRCALPHA).convert_alpha()
-        self._render_layers()
-
-    def _render_layers(self):
-        for layer in self.tmx_data.visible_layers:
-            if isinstance(layer, pytmx.TiledTileLayer):
-                for x, y, gid in layer.tiles():
-                    if isinstance(gid, pygame.Surface):
-                        tile = gid
-                    else:
-                        try:
-                            tile = self.tmx_data.get_tile_image_by_gid(int(gid)) if gid else None
-                        except (TypeError, ValueError):
-                            continue
-                    if tile:
-                        self.surface.blit(
-                            tile,
-                            (x * self.tmx_data.tilewidth, y * self.tmx_data.tileheight)
-                        )
-
-    def draw(self, target_surface: pygame.Surface, camera_rect: pygame.Rect):
-        target_surface.blit(self.surface, (0, 0), camera_rect)
-
-    def sample_color(self, x: float, y: float):
-        if 0 <= x < self.pixel_width and 0 <= y < self.pixel_height:
-            return self.surface.get_at((int(x), int(y)))
-        return None
-
-    def looks_like_grass(self, x: float, y: float) -> bool:
-        color = self.sample_color(x, y)
-        if color is None or color.a == 0:
-            return False
-        return color.g > color.r + 10 and color.g > color.b + 10
-
-
-class ProceduralTileMap:
-    def __init__(self, width: int, height: int, tile_size: int = 32):
-        self.pixel_width = width
-        self.pixel_height = height
-        self.tilewidth = tile_size
-        self.tileheight = tile_size
-        self.surface = pygame.Surface((self.pixel_width, self.pixel_height), pygame.SRCALPHA).convert_alpha()
-        self._generate_pattern()
-
-    def _generate_pattern(self):
-        grass_colors = [(46, 142, 73), (38, 122, 60), (64, 160, 90)]
-        water_colors = [(64, 115, 158), (52, 101, 140)]
-        dirt_color = (130, 95, 60)
-        for y in range(0, self.pixel_height, self.tileheight):
-            for x in range(0, self.pixel_width, self.tilewidth):
-                roll = random.random()
-                if roll < 0.75:
-                    color = random.choice(grass_colors)
-                elif roll < 0.90:
-                    color = dirt_color
-                else:
-                    color = random.choice(water_colors)
-                pygame.draw.rect(self.surface, color, pygame.Rect(x, y, self.tilewidth, self.tileheight))
-
-    def draw(self, target_surface: pygame.Surface, camera_rect: pygame.Rect):
-        target_surface.blit(self.surface, (0, 0), camera_rect)
-
-    def sample_color(self, x: float, y: float):
-        if 0 <= x < self.pixel_width and 0 <= y < self.pixel_height:
-            return self.surface.get_at((int(x), int(y)))
-        return None
-
-    def looks_like_grass(self, x: float, y: float) -> bool:
-        color = self.sample_color(x, y)
-        if color is None or color.a == 0:
-            return False
-        return color.g > color.r + 10 and color.g > color.b + 10
 
 
 # 武器稀有度
@@ -174,16 +114,18 @@ class Rarity(Enum):
     EPIC = 2
     LEGENDARY = 3
 
+# 武器磨损度枚举
+class Condition(Enum):
+    S = 0  # S级 / 极佳（像全新）
+    A = 1  # A级 / 优良
+    B = 2  # B级 / 良好
+    C = 3  # C级 / 普通
+    D = 4  # D级 / 磨损
+    E = 5  # E级 / 严重磨损
+
 
 class BlockchainGame:
     def __init__(self):
-        self.blockchain_available = False
-        self.offline_reason = ""
-        self.w3 = None
-        self.contract = None
-        self.account = "0x0000000000000000000000000000000000000000"
-        self.contract_address = "N/A"
-        self.rpc_url = os.getenv("RPC_URL", "http://127.0.0.1:8545")
         self.setup_blockchain()
         self.weapons = []
         self.current_weapon_index = 0
@@ -193,8 +135,6 @@ class BlockchainGame:
         self.angle = 0
         self.rotation_speed = 5
         self.game_state = "playing"
-        self.inventory_selection = 0
-        self.market_selection = 0
         self.market_weapons = []
         self.last_refresh_block = 0
         self.auto_refresh_interval = 30  # 每30帧自动尝试刷新（≈0.5秒）
@@ -202,144 +142,74 @@ class BlockchainGame:
         self.last_flush_ms = 0    # 上一次写链时间戳
         self.flush_interval_ms = 3000  # 每3秒尝试上链一次
         # 玩家属性
-        self.player_x = 0
-        self.player_y = 0
+        self.player_x = WIDTH // 2
+        self.player_y = HEIGHT // 2
         self.player_speed = 6
-        self.player_radius = 5
-        self.weapon_length = 70
+        self.player_radius = 22
         self.standing_grass_id = None  # 当前所站草块索引
-        self.tile_map_error = None
-
-        try:
-            self.tile_map = TileMap(DEFAULT_TMX_PATH)
-        except Exception as err:
-            self.tile_map_error = str(err)
-            print(f"⚠️ 无法加载 TMX 地图，使用内置程序化地图: {err}")
-            fallback_size = 1600
-            self.tile_map = ProceduralTileMap(fallback_size, fallback_size)
-        self.world_bounds = pygame.Rect(0, 0, self.tile_map.pixel_width, self.tile_map.pixel_height)
-        self.camera_zoom = 2.5
-        camera_w = max(200, int(WIDTH / self.camera_zoom))
-        camera_h = max(150, int(HEIGHT / self.camera_zoom))
-        self.camera_rect = pygame.Rect(0, 0, camera_w, camera_h)
-        self.scene_surface = pygame.Surface((camera_w, camera_h), pygame.SRCALPHA).convert_alpha()
-        self.player_x = self.world_bounds.width // 2
-        self.player_y = self.world_bounds.height // 2
-        self.update_camera()
 
         self.load_player_data()
         self.generate_grass()
         self.load_market_weapons()
-        self.input_cooldown_ms = 200
-        self.last_state_toggle = 0
+
+        # 上架弹窗状态
+        self.show_listing_modal = False
+        self.listing_weapon = None
+        self.listing_price_str = ""
+        self.listing_min_eth = None
+        self.listing_max_eth = None
+        self.listing_recommended_eth = None
 
         print("游戏初始化完成!")
-
-    def set_game_state(self, state):
-        self.game_state = state
-        self.last_state_toggle = pygame.time.get_ticks()
-
-    def toggle_inventory(self):
-        now = pygame.time.get_ticks()
-        if now - self.last_state_toggle < self.input_cooldown_ms:
-            return
-        if self.game_state == "inventory":
-            self.set_game_state("playing")
-        else:
-            self.inventory_selection = 0
-            self.set_game_state("inventory")
-
-    def toggle_market(self):
-        now = pygame.time.get_ticks()
-        if now - self.last_state_toggle < self.input_cooldown_ms:
-            return
-        if self.game_state == "marketplace":
-            self.set_game_state("playing")
-        else:
-            self.market_selection = 0
-            self.set_game_state("marketplace")
-
-    def _load_json_with_fallback(self, candidates, description):
-        """从多个候选路径中加载 JSON，返回 (数据, 使用的路径)"""
-        errors = []
-        for path in candidates:
-            try:
-                with open(path, 'r', encoding='utf-8') as f:
-                    return json.load(f), path
-            except FileNotFoundError:
-                errors.append(f"{path}: 文件不存在")
-            except json.JSONDecodeError as err:
-                errors.append(f"{path}: JSON 解析失败 ({err})")
-        detail = " | ".join(errors)
-        raise FileNotFoundError(f"{description} 未找到，已尝试: {', '.join(candidates)}. {detail}")
-
-    def _resolve_contract_address(self, candidates):
-        """寻找包含已部署合约地址的文件，返回 (checksum 地址, 合约信息, 路径)"""
-        errors = []
-        for path in candidates:
-            try:
-                with open(path, 'r', encoding='utf-8') as f:
-                    info = json.load(f)
-            except FileNotFoundError:
-                errors.append(f"{path}: 文件不存在")
-                continue
-            raw_address = info.get('address')
-            if not raw_address:
-                errors.append(f"{path}: 缺少 address 字段")
-                continue
-            try:
-                checksum = self.w3.to_checksum_address(raw_address)
-            except Exception as err:
-                errors.append(f"{path}: 地址无效 ({raw_address}) -> {err}")
-                continue
-            code = self.w3.eth.get_code(checksum)
-            if code and any(byte != 0 for byte in code):
-                return checksum, info, path
-            errors.append(f"{path}: 地址 {raw_address} 上没有已部署合约")
-        detail = " | ".join(errors)
-        raise RuntimeError(f"无法找到可用的合约地址。请重新部署合约。详情: {detail}")
 
     def setup_blockchain(self):
         """设置区块链连接"""
         try:
-            print(f"🔌 正在连接区块链 RPC: {self.rpc_url}")
-            self.w3 = Web3(Web3.HTTPProvider(self.rpc_url, request_kwargs={"timeout": 5}))
-            try:
-                block_number = self.w3.eth.block_number
-                print(f"✅ 连接到区块链网络，最新区块: {block_number}")
-            except Exception as block_err:
-                raise RuntimeError(f"无法获取区块高度: {block_err}") from block_err
-            abi_data, abi_path = self._load_json_with_fallback(
-                ["WeedCutterNFT.json", "scripts/WeedCutterNFT.json"],
-                "合约 ABI"
-            )
-            self.contract_abi = abi_data['abi']
-            if abi_path != "WeedCutterNFT.json":
-                print(f"⚠️ 使用备用 ABI 文件: {abi_path}")
+            self.w3 = Web3(Web3.HTTPProvider('http://localhost:8545'))
 
-            self.contract_address, contract_info, info_path = self._resolve_contract_address(
-                ["contract-info.json", "scripts/contract-info.json"]
-            )
-            if info_path != "contract-info.json":
-                print(f"⚠️ 主目录 contract-info.json 未同步，已使用 {info_path}")
+            if not self.w3.is_connected():
+                raise Exception("无法连接到区块链网络")
+
+            print(f"✅ 连接到区块链网络，最新区块: {self.w3.eth.block_number}")
+
+            # 加载合约信息
+            with open('contract-info.json', 'r') as f:
+                contract_info = json.load(f)
+
+            with open('WeedCutterNFT.json', 'r') as f:
+                contract_data = json.load(f)
+
+            raw_address = contract_info['address']
+            try:
+                # 转换为 checksum 地址，避免 web3.py 报错
+                self.contract_address = self.w3.to_checksum_address(raw_address)
+            except Exception:
+                print(f"⚠️ 地址 {raw_address} 转换 checksum 失败，继续使用原始地址")
+                self.contract_address = raw_address
+
+            self.contract_abi = contract_data['abi']
+
+            # 合约代码存在性检查（防止使用旧的地址）
+            code = self.w3.eth.get_code(self.contract_address)
+            if code in (b"", b"0x", b"0"):
+                print("⚠️ 该地址上没有合约代码。请确认已重新部署并更新 contract-info.json")
 
             self.contract = self.w3.eth.contract(
                 address=self.contract_address,
                 abi=self.contract_abi
             )
 
+            # 使用第一个账户（hardhat 节点默认解锁）
             self.account = self.w3.eth.accounts[0]
             print(f"使用账户: {self.account}")
 
-            self.blockchain_available = True  # 成功连接后标记为可用
-
+        except FileNotFoundError as e:
+            print(f"❌ 未找到文件: {e}. 请先运行部署脚本: npx hardhat run scripts/deploy.ts --network localhost")
+            sys.exit(1)
         except Exception as e:
-            import traceback
-            print(f"❌ 区块链设置失败，进入离线模式: {e}")
-            traceback.print_exc()
-            self.blockchain_available = False
-            self.offline_reason = f"{e} (RPC: {self.rpc_url})"
-            print("提示: 请确保 Hardhat 节点运行并部署合约后再重开游戏。")
+            print(f"❌ 区块链设置失败: {e}")
+            print("请确保 Hardhat 节点正在运行: npx hardhat node，并且已执行部署脚本")
+            sys.exit(1)
 
     # 在 BlockchainGame 类中添加这个方法
     def get_weapon_display_name(self, weapon_name, rarity):
@@ -369,49 +239,49 @@ class BlockchainGame:
         weapon_types = ["除草刀", "除草镰", "除草剑", "除草斧", "除草锤"]
         return f"{rarity_names[rarity]}{random.choice(weapon_types)}"
 
-    def get_current_weapon(self):
-        # 没有链上武器时提供默认新手武器，避免渲染阶段崩溃
-        if not self.weapons:
-            return {
-                'id': -1,
-                'name': "新手除草刀",
-                'original_name': "Starter Cutter",
-                'rarity': Rarity.COMMON,
-                'damage_multiplier': 1.0,
-                'owner': self.account,
-                'price': 0,
-                'for_sale': False
-            }
-        self.current_weapon_index %= len(self.weapons)
-        return self.weapons[self.current_weapon_index]
-
-    def get_rarity_color(self, rarity: Rarity):
-        palette = {
-            Rarity.COMMON: GRAY,
-            Rarity.RARE: BLUE,
-            Rarity.EPIC: PURPLE,
-            Rarity.LEGENDARY: GOLD
-        }
-        return palette.get(rarity, GRAY)
-
     def load_player_data(self):
         """从区块链加载玩家数据"""
-        if not self.blockchain_available:
-            self.score = 0
-            self.coins = 0
-            self.weapons = []
-            return
         try:
+            # 加载本地删除黑名单（持久化，以便重启游戏后仍然生效）
+            deleted_ids = self._load_local_deleted_ids()
+
             self.score, self.coins = self.contract.functions.getPlayerStats(self.account).call()
             weapon_ids = self.contract.functions.getUserWeapons(self.account).call()
             self.weapons = []
-
+            # 过滤被本地删除的武器
+            if deleted_ids:
+                weapon_ids = [wid for wid in weapon_ids if wid not in deleted_ids]
             for weapon_id in weapon_ids:
                 weapon_data = self.contract.functions.getWeaponDetails(weapon_id).call()
                 display_name = self.get_weapon_display_name(
                     weapon_data[1],
                     Rarity(weapon_data[2])
                 )
+                # 获取磨损度/等级：合约可能只存储 Condition enum (0..5)
+                wear = None
+                grade = None
+                if len(weapon_data) > 7:
+                    try:
+                        raw = weapon_data[7]
+                        if isinstance(raw, (int, float)):
+                            ival = int(raw)
+                            # 若链上字段是 0..5，视为 Condition 枚举
+                            if 0 <= ival <= 5:
+                                try:
+                                    grade = Condition(ival)
+                                except Exception:
+                                    grade = None
+                            else:
+                                # 否则将其视为按 1e10 缩放的 wear 值（或任意大整数编码）
+                                wear = (ival % (10**10)) / 1e10
+                    except Exception:
+                        pass
+                if wear is None:
+                    # 根据 weapon_id 和 owner 生成确定性的磨损值，避免每次不一致
+                    wear = self.compute_wear_seed(weapon_data[0], weapon_data[4])
+                # 若链上给出了枚举优先使用，否则根据 wear 映射等级
+                if grade is None:
+                    grade = self.wear_to_condition_grade(wear)
                 weapon = {
                     'id': weapon_data[0],
                     'name': display_name,
@@ -420,7 +290,9 @@ class BlockchainGame:
                     'damage_multiplier': weapon_data[3] / 100.0,
                     'owner': weapon_data[4],
                     'price': weapon_data[5],
-                    'for_sale': weapon_data[6]
+                    'for_sale': weapon_data[6],
+                    'condition': grade,
+                    'wear': wear
                 }
                 self.weapons.append(weapon)
 
@@ -432,9 +304,6 @@ class BlockchainGame:
 
     def load_market_weapons(self):
         """从链上加载市场上在售武器"""
-        if not self.blockchain_available:
-            self.market_weapons = []
-            return
         try:
             # 遍历所有武器ID，筛选 forSale = true (也可以扩展用 getWeaponsForSale, 这里使用逐个以兼容当前ABI). 如果合约已有 getWeaponsForSale 可调用
             sale_list = []
@@ -447,9 +316,34 @@ class BlockchainGame:
                     wdata = self.contract.functions.getWeaponDetails(weapon_id).call()
                     if wdata[6]:  # forSale
                         sale_list.append(wdata)
+            # 加载本地删除黑名单，避免在市场中显示已本地删除的武器
+            deleted_ids = self._load_local_deleted_ids()
             self.market_weapons = []
             for w in sale_list:
+                if deleted_ids and w[0] in deleted_ids:
+                    continue
                 display_name = self.get_weapon_display_name(w[1], Rarity(w[2]))
+                # 获取磨损度/等级（优先识别合约返回的 Condition enum）
+                wear = None
+                grade = None
+                if len(w) > 7:
+                    try:
+                        raw = w[7]
+                        if isinstance(raw, (int, float)):
+                            ival = int(raw)
+                            if 0 <= ival <= 5:
+                                try:
+                                    grade = Condition(ival)
+                                except Exception:
+                                    grade = None
+                            else:
+                                wear = (ival % (10**10)) / 1e10
+                    except Exception:
+                        pass
+                if wear is None:
+                    wear = self.compute_wear_seed(w[0], w[4])
+                if grade is None:
+                    grade = self.wear_to_condition_grade(wear)
                 self.market_weapons.append({
                     'id': w[0],
                     'name': display_name,
@@ -458,18 +352,84 @@ class BlockchainGame:
                     'damage_multiplier': w[3] / 100.0,
                     'owner': w[4],
                     'price': w[5],
-                    'for_sale': w[6]
+                    'for_sale': w[6],
+                    'condition': grade,
+                    'wear': wear
                 })
             # 排序：价格低的排前，稀有度高优先
             self.market_weapons.sort(key=lambda w: (w['price'], -w['rarity'].value))
         except Exception as e:
             print(f"加载市场数据失败: {e}")
 
+    def _local_deleted_path(self):
+        return 'deleted_weapons.json'
+
+    def _load_local_deleted_ids(self):
+        try:
+            import os
+            p = self._local_deleted_path()
+            if not os.path.exists(p):
+                return set()
+            with open(p, 'r') as f:
+                data = json.load(f)
+            return set(int(x) for x in data)
+        except Exception:
+            return set()
+
+    def _mark_local_deleted(self, weapon_id):
+        try:
+            p = self._local_deleted_path()
+            s = self._load_local_deleted_ids()
+            s.add(int(weapon_id))
+            with open(p, 'w') as f:
+                json.dump(sorted(list(s)), f)
+        except Exception as e:
+            print(f"无法写入本地删除文件: {e}")
+
+    def delete_weapon(self, weapon):
+        """尝试链上删除武器（若合约支持），否则回退到本地删除并持久化黑名单。"""
+        wid = int(weapon['id'])
+        # 尝试链上删除（合约可能未实现 burn/remove）
+        try:
+            # 通过 getattr 检查函数是否存在在 ABI 中
+            burn_fn = None
+            try:
+                burn_fn = getattr(self.contract.functions, 'burn')
+            except Exception:
+                burn_fn = None
+
+            if burn_fn:
+                print(f"尝试链上销毁武器 {wid} ...")
+                tx = self.contract.functions.burn(wid).build_transaction({
+                    'from': self.account,
+                    'gas': 200000,
+                    'gasPrice': self.w3.to_wei('2', 'gwei'),
+                    'nonce': self.w3.eth.get_transaction_count(self.account)
+                })
+                tx_hash = self.w3.eth.send_transaction(tx)
+                print(f"⏳ 销毁交易发送: {tx_hash.hex()} 等待确认...")
+                receipt = self.w3.eth.wait_for_transaction_receipt(tx_hash, timeout=30)
+                status = receipt.get('status', 0) if isinstance(receipt, dict) else getattr(receipt, 'status', 0)
+                if status == 1:
+                    print("✅ 链上销毁成功")
+                    self.load_player_data()
+                    return
+                else:
+                    print("❌ 链上销毁交易失败，回退到本地删除")
+
+        except Exception as e:
+            print(f"链上删除尝试失败: {e}，回退到本地删除")
+
+        # 本地删除
+        try:
+            self._mark_local_deleted(wid)
+            self.weapons = [w for w in self.weapons if w['id'] != wid]
+            print(f"本地已删除武器 {wid} (持久化到 deleted_weapons.json)")
+        except Exception as e:
+            print(f"本地删除失败: {e}")
+
     def record_score(self, points):
         """立即将累计分数写链（内部使用）"""
-        if not self.blockchain_available:
-            self.score += points
-            return
         try:
             if points <= 0:
                 return
@@ -501,221 +461,562 @@ class BlockchainGame:
             self.last_flush_ms = now
             self.record_score(to_flush)
 
-    def update_camera(self):
-        self.camera_rect.center = (int(self.player_x), int(self.player_y))
-        self.camera_rect.clamp_ip(self.world_bounds)
-
-    def world_point_to_screen(self, x: float, y: float):
-        return int(x - self.camera_rect.left), int(y - self.camera_rect.top)
-
-    def world_rect_to_screen(self, rect: pygame.Rect):
-        return pygame.Rect(
-            rect.x - self.camera_rect.left,
-            rect.y - self.camera_rect.top,
-            rect.width,
-            rect.height
-        )
-
-    def draw_hud(self, surface, translucent: bool):
-        if translucent:
-            top_panel = pygame.Surface((WIDTH, 140), pygame.SRCALPHA)
-            top_panel.fill((255, 255, 255, 215))
-            surface.blit(top_panel, (0, 0))
-        title = large_font.render("区块链旋转除草NFT游戏 - 真实链上版本", True, BLACK)
-        surface.blit(title, (WIDTH // 2 - title.get_width() // 2, 20))
-
-        player_text = font.render(
-            f"玩家: {self.account[:10]}... | 分数: {self.score} (+{self.pending_points}*) | 金币: {self.coins} | 武器: {len(self.weapons)}",
-            True,
-            BLACK
-        ) if self.blockchain_available else font.render(
-            f"离线模式 | 分数: {self.score} (+{self.pending_points}*) | 金币: {self.coins}",
-            True,
-            BLACK
-        )
-        surface.blit(player_text, (20, 100))
-        if not self.blockchain_available and self.offline_reason:
-            warn = small_font.render(f"离线原因: {self.offline_reason}", True, RED)
-            surface.blit(warn, (20, 130))
-        if self.tile_map_error:
-            map_warn = small_font.render(f"地图加载失败: {self.tile_map_error}", True, RED)
-            surface.blit(map_warn, (20, 150))
-
-        if self.pending_points > 0:
-            hint = small_font.render("*待上链", True, RED)
-            surface.blit(hint, (20 + player_text.get_width() - 60, 120))
-
-        if self.standing_grass_id is not None:
-            stand_tip = small_font.render("站在草块上: 旋转命中判定更稳定", True, DARK_GREEN)
-            surface.blit(stand_tip, (WIDTH - stand_tip.get_width() - 20, 70))
-
-        controls = small_font.render(
-            "WASD/方向键: 移动 | 空格: 旋转除草 | N: 铸造 | M: 市场 | I: 背包 | R: 重置草地 | ESC: 返回",
-            True,
-            BLACK
-        )
-        if translucent:
-            bottom_panel = pygame.Surface((WIDTH, 30), pygame.SRCALPHA)
-            bottom_panel.fill((255, 255, 255, 200))
-            surface.blit(bottom_panel, (0, HEIGHT - 30))
-        surface.blit(controls, (20, HEIGHT - 25))
-
-        block_text = font.render(
-            f"区块链高度: {self.w3.eth.block_number} | 合约: {self.contract_address[:10]}...",
-            True,
-            BLUE
-        ) if self.blockchain_available else font.render("离线模式 - 未连接区块链", True, RED)
-        surface.blit(block_text, (WIDTH - block_text.get_width() - 20, 10))
-
     def draw(self, surface):
+        surface.fill(BG_DARK)
+
+    # ===== 顶部 HUD =====
+        top_bar = pygame.Rect(0, 0, WIDTH, 60)
+        pygame.draw.rect(surface, PANEL, top_bar)
+
+        title = large_font.render("⛓ Weed Slayer NFT", True, TEXT_MAIN)
+        surface.blit(title, (20, 14))
+
+        block_info = small_font.render(
+            f"Block {self.w3.eth.block_number} | {self.contract_address[:10]}...",
+            True, TEXT_DIM
+        )
+        surface.blit(block_info, (WIDTH - block_info.get_width() - 20, 22))
+
+    # ===== 左侧玩家面板 =====
+        player_panel = pygame.Rect(20, 80, 260, 170)
+        draw_panel(surface, player_panel, "PLAYER")
+
+        draw_label(surface, "Address", (30, 100), self.account[:8] + "...")
+        draw_label(
+            surface,
+            "Score",
+            (30, 125),
+            f"{self.score} (+{self.pending_points})",
+            SUCCESS_GREEN if self.pending_points == 0 else WARNING_RED
+        )
+        draw_label(surface, "Gold", (30, 150), self.coins, GOLD)
+        draw_label(surface, "Weapons", (30, 175), len(self.weapons))
+
+    # ===== 主界面 =====
         if self.game_state == "playing":
             self.draw_game(surface)
         elif self.game_state == "marketplace":
-            surface.fill(WHITE)
             self.draw_marketplace(surface)
         elif self.game_state == "inventory":
-            surface.fill(WHITE)
             self.draw_inventory(surface)
-        self.draw_hud(surface, translucent=(self.game_state == "playing"))
 
-    def draw_inventory(self, surface):
-        title = large_font.render("背包 - 已拥有武器", True, BLACK)
-        surface.blit(title, (WIDTH // 2 - title.get_width() // 2, 60))
-        if not self.weapons:
-            empty = font.render("暂无武器，去市场收集吧!", True, RED)
-            surface.blit(empty, (WIDTH // 2 - empty.get_width() // 2, HEIGHT // 2))
-            return
-        start_y = 140
-        line_height = 40
-        max_visible = 10
-        offset = max(0, self.inventory_selection - max_visible + 1)
-        for idx in range(offset, min(len(self.weapons), offset + max_visible)):
-            weapon = self.weapons[idx]
-            y = start_y + (idx - offset) * line_height
-            color = self.get_rarity_color(weapon['rarity'])
-            text = font.render(
-                f"#{weapon['id']:02d} {weapon['name']} | 稀有度: {weapon['rarity'].name} | 伤害x{weapon['damage_multiplier']:.1f}",
-                True,
-                color
-            )
-            surface.blit(text, (120, y))
-            if idx == self.inventory_selection:
-                pygame.draw.rect(surface, GOLD, pygame.Rect(100, y - 5, WIDTH - 200, line_height), 2)
-        hint = small_font.render("↑↓ 选择 | Enter 切换武器 | I 返回游戏", True, BLACK)
-        surface.blit(hint, (WIDTH // 2 - hint.get_width() // 2, HEIGHT - 80))
+        # 若弹窗打开，绘制弹窗（覆盖在最上层）
+        if self.show_listing_modal:
+            self.draw_listing_modal(surface)
+
+    # ===== 底部技能栏 =====
+        skill_bar = pygame.Rect(0, HEIGHT - 60, WIDTH, 60)
+        pygame.draw.rect(surface, PANEL, skill_bar)
+
+        skills = [
+            ("SPACE", "Slash"),
+            ("N", "Forge"),
+            ("M", "Market"),
+            ("I", "Bag"),
+            ("ESC", "Back")
+        ]
+
+        x = 20
+        for key, name in skills:
+            box = pygame.Rect(x, HEIGHT - 45, 95, 36)
+            pygame.draw.rect(surface, PANEL_BORDER, box, 1, border_radius=6)
+            txt = small_font.render(f"{key}  {name}", True, TEXT_MAIN)
+            surface.blit(txt, (box.x + 8, box.y + 8))
+            x += 105
+
+
+    # --- 新增：2.5D 投影核心算法 ---
+    def to_iso(self, x, y):
+        """将逻辑坐标(2D)转换为等轴测屏幕坐标(2.5D)"""
+        # 这里的 0.5 决定了视角的倾斜度
+        iso_x = (x - y) + WIDTH // 2  # 将原点移到屏幕中心
+        iso_y = (x + y) * 0.5 + 50     # +50 是垂直偏移量
+        return int(iso_x), int(iso_y)
+
+    # --- 新增：绘制立体方块 ---
+    def draw_iso_cube(self, surface, x, y, width, height, color_top, color_side, z_height=0):
+        """
+        在逻辑坐标 (x,y) 处绘制一个立体方块
+        width/height: 方块在逻辑世界的大小
+        z_height: 方块的厚度/高度
+        """
+        # 计算四个角的逻辑坐标
+        half_w = width / 2
+        half_h = height / 2
+        
+        # 逻辑顶点 (Top-Left, Top-Right, Bottom-Right, Bottom-Left)
+        pts_logic = [
+            (x - half_w, y - half_h),
+            (x + half_w, y - half_h),
+            (x + half_w, y + half_h),
+            (x - half_w, y + half_h)
+        ]
+        
+        # 投影到屏幕坐标
+        pts_iso = [self.to_iso(px, py) for px, py in pts_logic]
+        
+        # 提升高度 (Y轴向上减)
+        pts_top = [(ix, iy - z_height) for ix, iy in pts_iso]
+        
+        # 颜色变暗处理 (模拟阴影)
+        def darken(c, f): return (int(c[0]*f), int(c[1]*f), int(c[2]*f))
+        c_side_r = darken(color_side, 0.8) # 右侧面较暗
+        c_side_l = darken(color_side, 0.6) # 左侧面更暗
+
+        # 1. 绘制左侧面 (连接 Top[3]-Top[0] 和 Bottom[3]-Bottom[0])
+        # 顶点顺序: Top[3], Top[0], Bottom[0], Bottom[3] (Bottom其实就是pts_iso)
+        # 实际上侧面是连接 Top 和 Base。
+        # 左侧面: Left Point (3) -> Bottom Point (2) 
+        # 让我们用更通用的顶点索引：0:Top, 1:Right, 2:Bottom, 3:Left
+        # 注意：to_iso 变换后，pts_iso[0]是上，[1]是右，[2]是下，[3]是左 (取决于 x-y)
+        # 修正：(x-y) 变换后：
+        # (x-half, y-half) -> Top (最远)
+        # (x+half, y-half) -> Right
+        # (x+half, y+half) -> Bottom (最近)
+        # (x-half, y+half) -> Left
+        
+        # 绘制右侧面 (连接 Right(1) 和 Bottom(2))
+        poly_right = [pts_top[1], pts_top[2], pts_iso[2], pts_iso[1]]
+        pygame.draw.polygon(surface, c_side_r, poly_right)
+        
+        # 绘制左侧面 (连接 Left(3) 和 Bottom(2))
+        poly_left = [pts_top[2], pts_top[3], pts_iso[3], pts_iso[2]]
+        pygame.draw.polygon(surface, c_side_l, poly_left)
+        
+        # 绘制顶面
+        pygame.draw.polygon(surface, color_top, pts_top)
+        # 顶面描边
+        pygame.draw.polygon(surface, darken(color_top, 0.5), pts_top, 1)
+
+    def draw_game(self, surface):
+        """绘制2.5D游戏画面"""
+        # 1. 准备渲染列表 (为了正确的遮挡关系，我们需要排序)
+        render_list = []
+
+        # 添加草地到渲染列表
+        for grass in self.grass_patches:
+            # 计算中心点用于排序
+            center_x = grass['x'] + grass['width'] / 2
+            center_y = grass['y'] + grass['height'] / 2
+            
+            is_cut = grass['health'] <= 50
+            # 设置颜色和高度
+            item = {
+                'type': 'grass',
+                'sort_depth': center_x + center_y, # 简单的深度排序键
+                'x': center_x,
+                'y': center_y,
+                'w': grass['width'],
+                'h': grass['height'],
+                'color': GREEN if not is_cut else BROWN,
+                'side_color': DARK_GREEN if not is_cut else (100, 50, 0),
+                'height': 20 if not is_cut else 5, # 未除草比较高，除草后变矮
+                'health': grass['health'],
+                'player_on': grass.get('player_on', False)
+            }
+            render_list.append(item)
+
+        # 添加玩家到渲染列表
+        render_list.append({
+            'type': 'player',
+            'sort_depth': self.player_x + self.player_y,
+            'x': self.player_x,
+            'y': self.player_y
+        })
+
+        # 2. 排序：按照 sort_depth 从小到大画 (从远到近)
+        render_list.sort(key=lambda item: item['sort_depth'])
+
+        # 3. 绘制循环
+        for item in render_list:
+            if item['type'] == 'grass':
+                # 高亮判定
+                top_c = item['color']
+                if item['player_on']:
+                    top_c = LIGHT_GREEN # 踩上去变亮
+                
+                self.draw_iso_cube(surface, item['x'], item['y'], item['w'], item['h'], 
+                                   top_c, item['side_color'], item['height'])
+                
+                # 绘制简单的血条 (悬浮在方块上方)
+                iso_pos = self.to_iso(item['x'], item['y'])
+                hp_screen_x, hp_screen_y = iso_pos[0], iso_pos[1] - item['height'] - 10
+                if item['health'] < 100:
+                    width_hp = 40 * (item['health'] / 100)
+                    pygame.draw.rect(surface, RED, (hp_screen_x - 20, hp_screen_y, width_hp, 4))
+
+            elif item['type'] == 'player':
+                self.draw_player_iso(surface)
+
+        # 4. 提示 UI (画在最上层)
+        tip = font.render("按住空格键旋转除草，分数将记录到区块链!", True, DARK_GREEN)
+        surface.blit(tip, (WIDTH // 2 - tip.get_width() // 2, HEIGHT - 80))
+        
+        # 调试信息
+        if self.standing_grass_id is not None:
+             stand_tip = small_font.render(f"位置: {int(self.player_x)},{int(self.player_y)}", True, BLUE)
+             surface.blit(stand_tip, (WIDTH - 150, 100))
+
+    def draw_player_iso(self, surface):
+        """专门绘制2.5D玩家和武器"""
+        # 玩家身体 (简单的蓝色立方体)
+        self.draw_iso_cube(surface, self.player_x, self.player_y, 40, 40, BLUE, (0, 0, 150), 35)
+        
+        # 玩家头部 (稍微偏移一点)
+        head_pos = self.to_iso(self.player_x, self.player_y)
+        head_y = head_pos[1] - 45 # 身体高度之上
+        pygame.draw.circle(surface, (255, 200, 150), (head_pos[0], int(head_y)), 12)
+        
+        # --- 武器绘制 (关键：投影旋转) ---
+        # 计算武器在逻辑平面的终点
+        weapon_len = 100
+        angle_rad = math.radians(self.angle)
+        
+        start_logic = (self.player_x, self.player_y)
+        end_logic_x = self.player_x + weapon_len * math.cos(angle_rad)
+        end_logic_y = self.player_y + weapon_len * math.sin(angle_rad)
+        
+        # 将起点和终点都投影到 ISO 屏幕坐标
+        start_iso = self.to_iso(*start_logic)
+        end_iso = self.to_iso(end_logic_x, end_logic_y)
+        
+        # 修正高度：武器应该拿在手里，而不是地上
+        hand_height = 25
+        s_iso = (start_iso[0], start_iso[1] - hand_height)
+        e_iso = (end_iso[0], end_iso[1] - hand_height)
+        
+        # 获取武器颜色
+        curr_w = self.get_current_weapon()
+        w_color = self.get_rarity_color(curr_w['rarity']) if curr_w else GRAY
+        
+        # 画刀身
+        pygame.draw.line(surface, w_color, s_iso, e_iso, 6)
+        
+        # 画拖尾 (如果是旋转状态)
+        keys = pygame.key.get_pressed()
+        if keys[pygame.K_SPACE]:
+            # 简单的模拟拖尾：画几条更透明的线
+            for i in range(1, 4):
+                offset_ang = math.radians(self.angle - i * 10)
+                tail_x = self.player_x + weapon_len * math.cos(offset_ang)
+                tail_y = self.player_y + weapon_len * math.sin(offset_ang)
+                tail_iso = self.to_iso(tail_x, tail_y)
+                t_iso = (tail_iso[0], tail_iso[1] - hand_height)
+                # 注意：pygame 不直接支持 alpha line，这里简单用细线模拟
+                pygame.draw.line(surface, w_color, s_iso, t_iso, 2)
 
     def draw_marketplace(self, surface):
-        title = large_font.render("市场 - 链上武器交易所", True, BLACK)
-        surface.blit(title, (WIDTH // 2 - title.get_width() // 2, 60))
-        if not self.market_weapons:
-            empty = font.render("当前没有上架的武器，稍后再来!", True, RED)
-            surface.blit(empty, (WIDTH // 2 - empty.get_width() // 2, HEIGHT // 2))
-            return
-        start_y = 140
-        line_height = 40
-        max_visible = 10
-        offset = max(0, self.market_selection - max_visible + 1)
-        for idx in range(offset, min(len(self.market_weapons), offset + max_visible)):
-            weapon = self.market_weapons[idx]
-            y = start_y + (idx - offset) * line_height
-            color = self.get_rarity_color(weapon['rarity'])
-            text = font.render(
-                f"#{weapon['id']:02d} {weapon['name']} | 稀有度: {weapon['rarity'].name} | 价格: {weapon['price']} | 持有者: {weapon['owner'][:10]}...",
-                True,
-                color
-            )
-            surface.blit(text, (80, y))
-            if idx == self.market_selection:
-                pygame.draw.rect(surface, BLUE, pygame.Rect(60, y - 5, WIDTH - 120, line_height), 2)
-        hint = small_font.render("↑↓ 选择 | Enter 购买 (占位) | M 返回游戏", True, BLACK)
-        surface.blit(hint, (WIDTH // 2 - hint.get_width() // 2, HEIGHT - 80))
+        """绘制市场"""
+        title = large_font.render("NFT武器市场 - 链上实时在售", True, BLACK)
+        surface.blit(title, (WIDTH // 2 - title.get_width() // 2, 120))
 
-    def handle_inventory_input(self, event):
+        if not self.market_weapons:
+            empty_text = font.render("当前没有武器在售。去背包上架一些吧!", True, BLACK)
+            surface.blit(empty_text, (WIDTH // 2 - empty_text.get_width() // 2, 200))
+            return
+
+        for i, weapon in enumerate(self.market_weapons):
+            y_pos = 180 + i * 130
+            rarity_color = self.get_rarity_color(weapon['rarity'])
+            card_rect = pygame.Rect(100, y_pos, 1000, 110)
+            pygame.draw.rect(surface, rarity_color, card_rect)
+            pygame.draw.rect(surface, rarity_color, card_rect, 3)
+
+            name_text = font.render(f"名称: {weapon['name']}", True, BLACK)
+            rarity_text = font.render(f"稀有度: {self.get_rarity_name(weapon['rarity'])}", True, BLACK)
+            damage_text = font.render(f"伤害倍率: {weapon['damage_multiplier']:.1f}", True, BLACK)
+            price_eth = self.w3.from_wei(weapon['price'], 'ether')
+            owner_short = weapon['owner'][:10] + '...'
+            owner_text = font.render(f"卖家: {owner_short}", True, BLACK)
+            price_text = font.render(f"价格: {price_eth:.4f} ETH", True, BLACK)
+
+            surface.blit(name_text, (120, y_pos + 15))
+            surface.blit(rarity_text, (120, y_pos + 45))
+            surface.blit(damage_text, (120, y_pos + 75))
+            # 添加磨损度显示（显示精确 wear）
+            condition_text = font.render(f"磨损度: {self.get_condition_name(weapon['wear'])}", True, BLACK)
+            surface.blit(condition_text, (400, y_pos + 15))
+            surface.blit(price_text, (400, y_pos + 45))
+            surface.blit(owner_text, (400, y_pos + 75))
+
+            buy_button = pygame.Rect(800, y_pos + 35, 120, 40)
+            pygame.draw.rect(surface, GREEN, buy_button)
+            pygame.draw.rect(surface, BLACK, buy_button, 2)
+            buy_text = font.render("购买", True, BLACK)
+            surface.blit(buy_text, (830, y_pos + 45))
+
+    def draw_inventory(self, surface):
+        """绘制背包"""
+        title = large_font.render("我的武器库 - 链上NFT", True, BLACK)
+        surface.blit(title, (WIDTH // 2 - title.get_width() // 2, 120))
+
         if not self.weapons:
-            if event.type == pygame.KEYDOWN and event.key == pygame.K_i:
-                self.toggle_inventory()
+            no_weapons = font.render("您还没有任何武器，去市场购买吧！", True, BLACK)
+            surface.blit(no_weapons, (WIDTH // 2 - no_weapons.get_width() // 2, 200))
             return
-        if event.type == pygame.KEYDOWN:
-            if event.key == pygame.K_UP:
-                self.inventory_selection = max(0, self.inventory_selection - 1)
-            elif event.key == pygame.K_DOWN:
-                self.inventory_selection = min(len(self.weapons) - 1, self.inventory_selection + 1)
-            elif event.key in (pygame.K_RETURN, pygame.K_KP_ENTER):
-                self.current_weapon_index = self.inventory_selection
-            elif event.key == pygame.K_i:
-                self.toggle_inventory()
 
-    def handle_market_input(self, event):
-        if not self.market_weapons:
-            if event.type == pygame.KEYDOWN and event.key == pygame.K_m:
-                self.toggle_market()
-            return
-        if event.type == pygame.KEYDOWN:
-            if event.key == pygame.K_UP:
-                self.market_selection = max(0, self.market_selection - 1)
-            elif event.key == pygame.K_DOWN:
-                self.market_selection = min(len(self.market_weapons) - 1, self.market_selection + 1)
-            elif event.key == pygame.K_m:
-                self.toggle_market()
+        for i, weapon in enumerate(self.weapons):
+            y_pos = 180 + i * 130
+            rarity_color = self.get_rarity_color(weapon['rarity'])
+            card_rect = pygame.Rect(100, y_pos, 1000, 110)
+            pygame.draw.rect(surface, rarity_color, card_rect)
+            pygame.draw.rect(surface, BLACK, card_rect, 3)
 
-    def generate_grass(self):
-        """生成草地格子"""
-        self.grass_patches = []
-        patch_size = 18
-        target = 150
-        attempts = 0
-        max_attempts = target * 40
-        while len(self.grass_patches) < target and attempts < max_attempts:
-            attempts += 1
-            x = random.randint(0, max(1, self.world_bounds.width - patch_size))
-            y = random.randint(100, max(100, self.world_bounds.height - patch_size))
-            center_x = x + patch_size // 2
-            center_y = y + patch_size // 2
-            if not self.tile_map.looks_like_grass(center_x, center_y):
-                continue
-            rect = pygame.Rect(x, y, patch_size, patch_size)
-            if any(rect.colliderect(existing['rect']) for existing in self.grass_patches):
-                continue
-            self.grass_patches.append({
-                'x': x,
-                'y': y,
-                'width': patch_size,
-                'height': patch_size,
-                'health': 100,
-                'rect': rect,
-                'player_on': False
-            })
-        if not self.grass_patches:
-            self._generate_default_grass_grid()
-        self.update_player_on_grass()
+            name_text = font.render(f"名称: {weapon['name']}", True, BLACK)
+            rarity_text = font.render(f"稀有度: {self.get_rarity_name(weapon['rarity'])}", True, BLACK)
+            damage_text = font.render(f"伤害倍率: {weapon['damage_multiplier']:.1f}", True, BLACK)
+            token_text = font.render(f"Token ID: {weapon['id']}", True, BLACK)
+            status_text = font.render("状态: 在售" if weapon['for_sale'] else "状态: 未上架", True, BLACK)
 
-    def _generate_default_grass_grid(self):
-        patch_size = 18
-        spacing = 4
-        grid = 7
-        start_x = int(self.player_x) - (grid // 2) * (patch_size + spacing)
-        start_y = int(self.player_y) - (grid // 2) * (patch_size + spacing)
-        start_x = max(0, min(self.world_bounds.width - grid * (patch_size + spacing), start_x))
-        start_y = max(0, min(self.world_bounds.height - grid * (patch_size + spacing), start_y))
-        self.grass_patches = []
-        for i in range(grid):
-            for j in range(grid):
-                x = start_x + i * (patch_size + spacing)
-                y = start_y + j * (patch_size + spacing)
-                rect = pygame.Rect(x, y, patch_size, patch_size)
-                self.grass_patches.append({
-                    'x': x,
-                    'y': y,
-                    'width': patch_size,
-                    'height': patch_size,
-                    'health': 100,
-                    'rect': rect,
-                    'player_on': False
+            surface.blit(name_text, (120, y_pos + 15))
+            surface.blit(rarity_text, (120, y_pos + 45))
+            surface.blit(damage_text, (120, y_pos + 75))
+            surface.blit(token_text, (400, y_pos + 15))
+            # 添加磨损度显示（显示精确 wear）
+            condition_text = font.render(f"磨损度: {self.get_condition_name(weapon['wear'])}", True, BLACK)
+            surface.blit(condition_text, (400, y_pos + 45))
+            surface.blit(status_text, (400, y_pos + 75))
+
+            equip_button = pygame.Rect(750, y_pos + 15, 100, 35)
+            is_current = i == self.current_weapon_index
+            pygame.draw.rect(surface, GOLD if is_current else BLUE, equip_button)
+            pygame.draw.rect(surface, BLACK, equip_button, 2)
+            equip_text = font.render("已装备" if is_current else "装备", True, BLACK)
+            surface.blit(equip_text, (equip_button.x + 10, equip_button.y + 7))
+
+            list_button = pygame.Rect(870, y_pos + 15, 130, 35)
+            pygame.draw.rect(surface, GREEN if not weapon['for_sale'] else GRAY, list_button)
+            pygame.draw.rect(surface, BLACK, list_button, 2)
+            list_text = font.render("上架出售" if not weapon['for_sale'] else "已上架", True, BLACK)
+            surface.blit(list_text, (list_button.x + 10, list_button.y + 7))
+
+            # 删除按钮（需按住 Shift 点击以确认）
+            delete_button = pygame.Rect(1010, y_pos + 15, 100, 35)
+            pygame.draw.rect(surface, WARNING_RED, delete_button)
+            pygame.draw.rect(surface, BLACK, delete_button, 2)
+            delete_text = font.render("删除", True, BLACK)
+            surface.blit(delete_text, (delete_button.x + 28, delete_button.y + 7))
+
+    def get_rarity_color(self, rarity):
+        colors = {
+            Rarity.COMMON: GRAY,
+            Rarity.RARE: BLUE,
+            Rarity.EPIC: PURPLE,
+            Rarity.LEGENDARY: GOLD
+        }
+        return colors[rarity]
+
+    def get_current_weapon(self):
+        if self.weapons and self.current_weapon_index < len(self.weapons):
+            return self.weapons[self.current_weapon_index]
+        return {'rarity': Rarity.COMMON, 'damage_multiplier': 1.0, 'name': '空手'}
+
+    def handle_click(self, pos):
+        if self.game_state == "marketplace":
+            for i, weapon in enumerate(self.market_weapons):
+                button_rect = pygame.Rect(800, 180 + i * 130 + 35, 120, 40)
+                if button_rect.collidepoint(pos):
+                    self.purchase_weapon(weapon)
+                    return
+        elif self.game_state == "inventory":
+            for i, weapon in enumerate(self.weapons):
+                equip_rect = pygame.Rect(750, 180 + i * 130 + 15, 100, 35)
+                list_rect = pygame.Rect(870, 180 + i * 130 + 15, 130, 35)
+                delete_rect = pygame.Rect(1010, 180 + i * 130 + 15, 100, 35)
+                if equip_rect.collidepoint(pos):
+                    self.current_weapon_index = i
+                    return
+                if list_rect.collidepoint(pos) and not weapon['for_sale']:
+                    # 打开自定义价格弹窗
+                    self.open_list_modal(weapon)
+                    return
+                if delete_rect.collidepoint(pos):
+                    # 需要按住 Shift 才会真正删除，避免误操作
+                    mods = pygame.key.get_mods()
+                    if mods & pygame.KMOD_SHIFT:
+                        self.delete_weapon(weapon)
+                    else:
+                        print("提示：按住 Shift 并点击删除以确认操作")
+                    return
+
+    def purchase_weapon(self, weapon):
+        try:
+            # 不再检查是否是自己的武器，允许购买自己的武器
+            if weapon['owner'] == self.account:
+                print("⚠️  购买自己上架的武器")
+            
+            # 检查武器是否在出售状态
+            if not weapon['for_sale']:
+                print("❌ 武器不在出售中")
+                return
+            
+            # 检查账户余额
+            balance = self.w3.eth.get_balance(self.account)
+            price_eth = self.w3.from_wei(weapon['price'], 'ether')
+            balance_eth = self.w3.from_wei(balance, 'ether')
+            print(f"尝试购买武器 ID {weapon['id']} 价格 {price_eth} ETH")
+            print(f"当前账户余额: {balance_eth} ETH")
+            
+            if balance < weapon['price']:
+                print(f"❌ 账户余额不足，需要 {price_eth} ETH，但只有 {balance_eth} ETH")
+                return
+            
+            # 先刷新武器状态，确保获取最新的在售信息
+            print("刷新武器状态中...")
+            self.load_market_weapons()
+            # 重新找到这个武器
+            updated_weapon = None
+            for w in self.market_weapons:
+                if w['id'] == weapon['id']:
+                    updated_weapon = w
+                    break
+            
+            if not updated_weapon:
+                print(f"❌ 武器 ID {weapon['id']} 不再在售，刷新后未找到")
+                return
+            
+            # 使用更新后的武器信息
+            weapon = updated_weapon
+            
+            # 优化交易参数以避免Internal error
+            try:
+                # 尝试使用自动gas估算
+                gas_estimate = self.contract.functions.purchaseWeapon(weapon['id']).estimate_gas({
+                    'from': self.account,
+                    'value': weapon['price']
                 })
+                print(f"自动估算的gas: {gas_estimate}")
+                gas_limit = int(gas_estimate * 1.5)  # 增加50%的缓冲
+            except Exception as gas_error:
+                print(f"Gas估算失败: {gas_error}，使用默认值")
+                gas_limit = 600000  # 更高的默认gas限制
+            
+            # 获取当前gas价格
+            try:
+                current_gas_price = self.w3.eth.gas_price
+                print(f"当前网络gas价格: {self.w3.from_wei(current_gas_price, 'gwei')} gwei")
+                gas_price = int(current_gas_price * 1.2)  # 稍微提高一点
+            except:
+                gas_price = self.w3.to_wei('5', 'gwei')  # 默认值
+            
+            # 获取nonce，使用两种方式确保正确
+            try:
+                nonce = self.w3.eth.get_transaction_count(self.account, 'pending')
+            except:
+                nonce = self.w3.eth.get_transaction_count(self.account)
+            print(f"使用nonce: {nonce}")
+            
+            # 构建交易
+            tx = self.contract.functions.purchaseWeapon(weapon['id']).build_transaction({
+                'from': self.account,
+                'value': weapon['price'],
+                'gas': gas_limit,
+                'gasPrice': gas_price,
+                'nonce': nonce,
+                'chainId': self.w3.eth.chain_id  # 添加chainId确保交易正确
+            })
+            
+            # 发送交易
+            print("正在发送交易...")
+            try:
+                tx_hash = self.w3.eth.send_transaction(tx)
+                print(f"⏳ 购买交易发送: {tx_hash.hex()} 等待确认...")
+                
+                # 使用较短的超时时间，避免长时间等待
+                try:
+                    receipt = self.w3.eth.wait_for_transaction_receipt(tx_hash, timeout=30)
+                    status = receipt.get('status', 0) if isinstance(receipt, dict) else getattr(receipt, 'status', 0)
+                    
+                    if status == 1:
+                        print("✅ 购买成功")
+                        import time
+                        time.sleep(1)
+                        self.load_player_data()
+                        self.load_market_weapons()
+                    else:
+                        print(f"❌ 购买交易失败，状态码: {status}")
+                except TimeoutError:
+                    print("⏳ 交易正在确认中，请等待...")
+                    # 即使超时也尝试刷新数据
+                    self.load_player_data()
+                    self.load_market_weapons()
+            except Exception as tx_error:
+                print(f"交易发送失败: {tx_error}")
+                # 尝试使用不同的参数重试一次
+                print("尝试使用不同参数重试...")
+                try:
+                    retry_tx = self.contract.functions.purchaseWeapon(weapon['id']).build_transaction({
+                        'from': self.account,
+                        'value': weapon['price'],
+                        'gas': 800000,  # 使用更高的gas限制
+                        'gasPrice': self.w3.to_wei('10', 'gwei'),  # 使用更高的gas价格
+                        'nonce': nonce + 1,  # 使用下一个nonce避免冲突
+                        'chainId': self.w3.eth.chain_id
+                    })
+                    retry_tx_hash = self.w3.eth.send_transaction(retry_tx)
+                    print(f"⏳ 重试交易发送: {retry_tx_hash.hex()}")
+                except Exception as retry_error:
+                    print(f"重试失败: {retry_error}")
+                    
+        except Exception as e:
+            print(f"购买失败: {str(e)}")
+            # 分析错误信息
+            error_str = str(e)
+            print(f"错误详情: {error_str}")
+            
+            if "insufficient funds" in error_str.lower():
+                print("错误分析：账户余额不足，请确保有足够的ETH")
+            elif "cannot buy your own weapon" in error_str.lower():
+                print("错误分析：不能购买自己的武器")
+            elif "weapon not for sale" in error_str.lower():
+                print("错误分析：武器不在出售状态")
+            elif "internal error" in error_str.lower():
+                print("错误分析：区块链节点内部错误")
+                print("建议：")
+                print("1. 重新启动Hardhat节点")
+                print("2. 重新部署合约")
+                print("3. 尝试再次上架武器后购买")
+            else:
+                print("错误分析：请检查区块链连接和合约状态")
+                print("建议重新启动游戏和区块链节点")
+
+    def list_weapon_for_sale(self, weapon):
+        try:
+            # 简单定价：基础 0.01 ETH * (1 + rarity.value*0.5)
+            base_price_eth = 0.01 * (1 + weapon['rarity'].value * 0.5)
+            price_wei = self.w3.to_wei(base_price_eth, 'ether')
+            print(f"上架武器 ID {weapon['id']} 价格 {base_price_eth:.4f} ETH")
+            tx = self.contract.functions.listWeaponForSale(weapon['id'], price_wei).build_transaction({
+                'from': self.account,
+                'gas': 250000,
+                'gasPrice': self.w3.to_wei('2', 'gwei'),
+                'nonce': self.w3.eth.get_transaction_count(self.account)
+            })
+            tx_hash = self.w3.eth.send_transaction(tx)
+            print(f"⏳ 上架交易发送: {tx_hash.hex()} 等待确认...")
+            receipt = self.w3.eth.wait_for_transaction_receipt(tx_hash)
+            status = receipt.get('status', 1) if isinstance(receipt, dict) else getattr(receipt, 'status', 1)
+            if status == 1:
+                print("✅ 上架成功")
+                self.load_player_data()
+                self.load_market_weapons()
+            else:
+                print("❌ 上架交易失败")
+        except Exception as e:
+            print(f"上架失败: {e}")
+
+    def tick_auto_refresh(self):
+        # 每隔一定帧数检查是否有新区块，若有则刷新市场与玩家数据
+        current_block = self.w3.eth.block_number
+        if pygame.time.get_ticks() % (self.auto_refresh_interval * 10) == 0:  # 简单节流
+            if current_block != self.last_refresh_block:
+                self.last_refresh_block = current_block
+                self.load_player_data()
+                if self.game_state == 'marketplace':
+                    self.load_market_weapons()
 
     def handle_player_movement(self):
-        if self.game_state != "playing":
-            return
+        """处理玩家移动 (WASD / 方向键)"""
         keys = pygame.key.get_pressed()
         dx = dy = 0
         if keys[pygame.K_w] or keys[pygame.K_UP]:
@@ -726,134 +1027,327 @@ class BlockchainGame:
             dx -= self.player_speed
         if keys[pygame.K_d] or keys[pygame.K_RIGHT]:
             dx += self.player_speed
+        # 斜向速度归一 (简单做法)
         if dx != 0 and dy != 0:
             dx *= 0.7071
             dy *= 0.7071
-        self.player_x = max(self.player_radius, min(self.world_bounds.width - self.player_radius, self.player_x + dx))
-        self.player_y = max(self.player_radius, min(self.world_bounds.height - self.player_radius, self.player_y + dy))
-        self.update_camera()
+        self.player_x += dx
+        self.player_y += dy
+        # 边界限制
+        margin = 40
+        self.player_x = max(margin, min(WIDTH - margin, self.player_x))
+        self.player_y = max(margin + 100, min(HEIGHT - margin, self.player_y))
         self.update_player_on_grass()
 
     def update_player_on_grass(self):
+        """检测玩家是否站在草块上并标记"""
         self.standing_grass_id = None
         for idx, grass in enumerate(self.grass_patches):
-            inside = grass['rect'].collidepoint(int(self.player_x), int(self.player_y))
+            rect = grass['rect']
+            # 玩家中心在草块矩形内则视为站立
+            inside = rect.collidepoint(int(self.player_x), int(self.player_y))
             grass['player_on'] = inside
             if inside:
                 self.standing_grass_id = idx
 
     def rotate_weapon(self):
-        if self.game_state != "playing":
-            return
-        self.angle = (self.angle + self.rotation_speed) % 360
-        weapon = self.get_current_weapon()
-        multiplier = weapon['damage_multiplier'] if weapon else 1.0
-        damage = 8 * multiplier
-        tip_radius = 14
-        radians_angle = math.radians(self.angle)
-        tip_x = self.player_x + self.weapon_length * math.cos(radians_angle)
-        tip_y = self.player_y + self.weapon_length * math.sin(radians_angle)
-        tip_rect = pygame.Rect(int(tip_x - tip_radius), int(tip_y - tip_radius), tip_radius * 2, tip_radius * 2)
+        self.angle += self.rotation_speed
+        if self.angle >= 360:
+            self.angle = 0
+
+        center_x, center_y = int(self.player_x), int(self.player_y)
+        weapon_length = 120
+        end_x = center_x + weapon_length * math.cos(math.radians(self.angle))
+        end_y = center_y + weapon_length * math.sin(math.radians(self.angle))
+
+        current_weapon = self.get_current_weapon()
+        damage = 8 * current_weapon['damage_multiplier']
+
         points_earned = 0
+
+        # 使用武器尖端的圆形碰撞，提高手感，避免整条线矩形过度命中
+        tip_radius = 14
+        tip_rect = pygame.Rect(int(end_x - tip_radius), int(end_y - tip_radius), tip_radius * 2, tip_radius * 2)
+
         for grass in self.grass_patches[:]:
             if tip_rect.colliderect(grass['rect']):
                 grass['health'] -= damage
                 if grass['health'] <= 0:
                     self.grass_patches.remove(grass)
                     points_earned += 10
+
         if points_earned > 0:
             self.pending_points += points_earned
             self.score += points_earned
         self.maybe_flush_points()
 
-    def draw_game(self, surface):
-        self.scene_surface.fill((0, 0, 0, 0))
-        if self.tile_map:
-            self.tile_map.draw(self.scene_surface, self.camera_rect)
-        for grass in self.grass_patches:
-            rect = self.world_rect_to_screen(grass['rect'])
-            color = GREEN if grass['health'] > 50 else LIGHT_GREEN
-            if grass.get('player_on'):
-                pygame.draw.rect(self.scene_surface, GOLD, rect)
-            else:
-                pygame.draw.rect(self.scene_surface, color, rect)
-            pygame.draw.rect(self.scene_surface, BLACK, rect, 1)
-            if grass['health'] > 0:
-                bar_width = int(rect.width * (grass['health'] / 100))
-                if bar_width > 0:
-                    bar = pygame.Rect(rect.x, rect.y - 4, bar_width, 3)
-                    pygame.draw.rect(self.scene_surface, RED, bar)
-        player_pos = self.world_point_to_screen(self.player_x, self.player_y)
-        pygame.draw.circle(self.scene_surface, (80, 80, 200), player_pos, self.player_radius)
-        pygame.draw.circle(self.scene_surface, (255, 255, 255), player_pos, max(2, self.player_radius - 8))
-        weapon = self.get_current_weapon()
-        if weapon:
-            radians_angle = math.radians(self.angle)
-            tip_x = self.player_x + self.weapon_length * math.cos(radians_angle)
-            tip_y = self.player_y + self.weapon_length * math.sin(radians_angle)
-            weapon_tip = self.world_point_to_screen(tip_x, tip_y)
-            pygame.draw.line(self.scene_surface, self.get_rarity_color(weapon['rarity']), player_pos, weapon_tip, 6)
-            pygame.draw.circle(self.scene_surface, BROWN, player_pos, max(6, self.player_radius // 2))
-        if self.scene_surface.get_size() != (WIDTH, HEIGHT):
-            scaled = pygame.transform.smoothscale(self.scene_surface, (WIDTH, HEIGHT))
-            surface.blit(scaled, (0, 0))
-        else:
-            surface.blit(self.scene_surface, (0, 0))
+    def generate_grass(self):
+        """生成草地格子"""
+        self.grass_patches = []
+        for i in range(6):
+            for j in range(6):
+                x = 150 + i * 70
+                y = 200 + j * 70
+                self.grass_patches.append({
+                    'x': x, 'y': y, 'width': 50, 'height': 50,
+                    'health': 100, 'rect': pygame.Rect(x, y, 50, 50)
+                })
 
-    def tick_auto_refresh(self):
-        if not self.blockchain_available or not self.w3:
-            return
-        now = pygame.time.get_ticks()
-        if now - getattr(self, 'last_auto_refresh_ms', 0) < 500:
-            return
-        self.last_auto_refresh_ms = now
+    def get_rarity_name(self, rarity):
+        names = {
+            Rarity.COMMON: "普通",
+            Rarity.RARE: "稀有",
+            Rarity.EPIC: "史诗",
+            Rarity.LEGENDARY: "传奇"
+        }
+        return names[rarity]
+    
+    def compute_price_range(self, weapon):
+        """计算同稀有度武器在市场中的价格区间（以 ETH 返回）。
+        返回 (min_eth, max_eth, recommended_eth)
+        """
+        same = [w for w in self.market_weapons if w['rarity'] == weapon['rarity'] and w['id'] != weapon['id']]
+        if not same:
+            base_price_eth = 0.01 * (1 + weapon['rarity'].value * 0.5)
+            return (base_price_eth * 0.5, base_price_eth * 2.0, base_price_eth)
+        prices = [float(self.w3.from_wei(w['price'], 'ether')) for w in same]
+        min_p = min(prices)
+        max_p = max(prices)
+        # 推荐价格：使用中位数与基础的平均
         try:
-            current_block = self.w3.eth.block_number
+            import statistics
+            median = statistics.median(prices)
+            recommended = (median + float(0.01 * (1 + weapon['rarity'].value * 0.5))) / 2
         except Exception:
+            recommended = sum(prices) / len(prices)
+        return (min_p, max_p, recommended)
+
+    def open_list_modal(self, weapon):
+        """打开上架弹窗，自动填充推荐价格并显示同类价格区间。"""
+        self.listing_weapon = weapon
+        mn, mx, rec = self.compute_price_range(weapon)
+        self.listing_min_eth = mn
+        self.listing_max_eth = mx
+        self.listing_recommended_eth = rec
+        # 自动填入推荐价格，保留 4 位小数显示
+        self.listing_price_str = f"{rec:.4f}"
+        self.show_listing_modal = True
+
+    def close_listing_modal(self):
+        self.show_listing_modal = False
+        self.listing_weapon = None
+        self.listing_price_str = ""
+        self.listing_min_eth = None
+        self.listing_max_eth = None
+        self.listing_recommended_eth = None
+
+    def draw_listing_modal(self, surface):
+        if not self.show_listing_modal or not self.listing_weapon:
             return
-        if current_block != self.last_refresh_block:
-            self.last_refresh_block = current_block
-            self.load_player_data()
-            if self.game_state == "marketplace":
+        # 半透明遮罩
+        overlay = pygame.Surface((WIDTH, HEIGHT), pygame.SRCALPHA)
+        overlay.fill((0, 0, 0, 160))
+        surface.blit(overlay, (0, 0))
+
+        # 中央面板
+        w, h = 560, 260
+        rect = pygame.Rect((WIDTH - w) // 2, (HEIGHT - h) // 2, w, h)
+        pygame.draw.rect(surface, PANEL, rect, border_radius=8)
+        pygame.draw.rect(surface, PANEL_BORDER, rect, 2, border_radius=8)
+
+        title = large_font.render("自定义上架价格", True, TEXT_MAIN)
+        surface.blit(title, (rect.x + 16, rect.y + 12))
+
+        info_y = rect.y + 64
+        rarity_text = small_font.render(f"稀有度: {self.get_rarity_name(self.listing_weapon['rarity'])}", True, TEXT_MAIN)
+        surface.blit(rarity_text, (rect.x + 20, info_y))
+
+        range_text = small_font.render(
+            f"同类价格区间: {self.listing_min_eth:.4f} ETH  -  {self.listing_max_eth:.4f} ETH", True, TEXT_DIM)
+        surface.blit(range_text, (rect.x + 20, info_y + 28))
+
+        rec_text = small_font.render(f"推荐价格: {self.listing_recommended_eth:.4f} ETH", True, SUCCESS_GREEN)
+        surface.blit(rec_text, (rect.x + 20, info_y + 56))
+
+        # 输入框
+        input_box = pygame.Rect(rect.x + 20, info_y + 96, 260, 36)
+        pygame.draw.rect(surface, WHITE, input_box)
+        pygame.draw.rect(surface, BLACK, input_box, 2)
+        inp = small_font.render(self.listing_price_str, True, BLACK)
+        surface.blit(inp, (input_box.x + 8, input_box.y + 6))
+
+        hint = small_font.render("输入价格（ETH），按 Enter 确认，Esc 取消", True, TEXT_DIM)
+        surface.blit(hint, (rect.x + 300, info_y + 100))
+
+        # 按钮
+        confirm_btn = pygame.Rect(rect.x + 120, rect.y + h - 60, 140, 40)
+        cancel_btn = pygame.Rect(rect.x + 280, rect.y + h - 60, 140, 40)
+        pygame.draw.rect(surface, GREEN, confirm_btn)
+        pygame.draw.rect(surface, BLACK, confirm_btn, 2)
+        pygame.draw.rect(surface, WARNING_RED, cancel_btn)
+        pygame.draw.rect(surface, BLACK, cancel_btn, 2)
+        ctxt = font.render("确认上架", True, BLACK)
+        ctxt2 = font.render("取消", True, BLACK)
+        surface.blit(ctxt, (confirm_btn.x + 30, confirm_btn.y + 8))
+        surface.blit(ctxt2, (cancel_btn.x + 50, cancel_btn.y + 8))
+
+        # 保存按钮 rect 供事件使用
+        self._listing_confirm_rect = confirm_btn
+        self._listing_cancel_rect = cancel_btn
+
+    def handle_listing_key(self, event):
+        # 只处理数字、点、Backspace、Enter、Escape
+        if event.key == pygame.K_ESCAPE:
+            self.close_listing_modal()
+            return
+        if event.key == pygame.K_RETURN or event.key == pygame.K_KP_ENTER:
+            self.confirm_listing()
+            return
+        if event.key == pygame.K_BACKSPACE:
+            self.listing_price_str = self.listing_price_str[:-1]
+            return
+        # 允许数字、小数点
+        ch = None
+        if event.unicode and event.unicode.isprintable():
+            ch = event.unicode
+        if ch and (ch.isdigit() or ch == '.'):
+            # 只保留一个小数点
+            if ch == '.' and '.' in self.listing_price_str:
+                return
+            # 限制长度
+            if len(self.listing_price_str) < 16:
+                self.listing_price_str += ch
+
+    def handle_listing_click(self, pos):
+        if hasattr(self, '_listing_confirm_rect') and self._listing_confirm_rect.collidepoint(pos):
+            self.confirm_listing()
+            return
+        if hasattr(self, '_listing_cancel_rect') and self._listing_cancel_rect.collidepoint(pos):
+            self.close_listing_modal()
+            return
+
+    def confirm_listing(self):
+        # 验证输入并调用链上上架
+        try:
+            if not self.listing_weapon:
+                self.close_listing_modal()
+                return
+            s = self.listing_price_str.strip()
+            if not s:
+                print("请输入价格后再确认上架")
+                return
+            # 使用 Decimal 提升精度
+            price_eth = Decimal(s)
+            price_wei = int(price_eth * Decimal(10**18))
+
+            wid = int(self.listing_weapon['id'])
+            print(f"上架武器 {wid} 价格 {price_eth} ETH -> {price_wei} wei")
+            tx = self.contract.functions.listWeaponForSale(wid, price_wei).build_transaction({
+                'from': self.account,
+                'gas': 300000,
+                'gasPrice': self.w3.to_wei('2', 'gwei'),
+                'nonce': self.w3.eth.get_transaction_count(self.account)
+            })
+            tx_hash = self.w3.eth.send_transaction(tx)
+            print(f"⏳ 上架交易发送: {tx_hash.hex()} 等待确认...")
+            receipt = self.w3.eth.wait_for_transaction_receipt(tx_hash)
+            status = receipt.get('status', 0) if isinstance(receipt, dict) else getattr(receipt, 'status', 0)
+            if status == 1:
+                print("✅ 上架成功")
+                self.close_listing_modal()
+                self.load_player_data()
                 self.load_market_weapons()
+            else:
+                print("❌ 上架交易失败")
+        except Exception as e:
+            print(f"上架失败: {e}")
+    
+    def get_condition_name(self, condition):
+        # 支持传入 wear (float) 或 Condition 枚举
+        if isinstance(condition, (float, int)):
+            wear = float(condition)
+            grade = self.wear_to_condition_grade(wear)
+            names = {
+                Condition.S: "S级（极佳）",
+                Condition.A: "A级（优良）",
+                Condition.B: "B级（良好）",
+                Condition.C: "C级（普通）",
+                Condition.D: "D级（磨损）",
+                Condition.E: "E级（严重磨损）",
+            }
+            return f"{names.get(grade,'未知')} {wear:.10f}"
+        else:
+            names = {
+                Condition.S: "S级（极佳）",
+                Condition.A: "A级（优良）",
+                Condition.B: "B级（良好）",
+                Condition.C: "C级（普通）",
+                Condition.D: "D级（磨损）",
+                Condition.E: "E级（严重磨损）",
+            }
+            return names.get(condition, "未知")
+
+    def compute_wear_seed(self, weapon_id, owner_addr):
+        """根据 weapon_id 与 owner 地址生成确定性的 wear（10位小数）。"""
+        try:
+            import hashlib
+            seed = f"{weapon_id}-{owner_addr}".encode()
+            h = hashlib.sha256(seed).digest()
+            val = int.from_bytes(h, 'big') % (10**10)
+            return val / 1e10
+        except Exception:
+            return round(random.random(), 10)
+
+    def wear_to_condition_grade(self, wear: float) -> Condition:
+        """将 wear(0..1) 映射到粗糙等级（枚举），wear 越小表示武器越新。"""
+        # 目标概率分布 (S, A, B, C, D, E) = (0.05, 0.10, 0.15, 0.20, 0.25, 0.25)
+        # 对应累积阈值: 0.05, 0.15, 0.30, 0.50, 0.75, 1.00
+        if wear < 0.05:
+            return Condition.S
+        if wear < 0.15:
+            return Condition.A
+        if wear < 0.30:
+            return Condition.B
+        if wear < 0.50:
+            return Condition.C
+        if wear < 0.75:
+            return Condition.D
+        return Condition.E
 
     def mint_random_weapon(self):
-        if not self.blockchain_available:
-            print("⚠️ 离线模式无法铸造武器")
-            return
-        required_coins = 20
-        if self.coins < required_coins:
-            print(f"金币不足，需 {required_coins}，当前 {self.coins}")
-            return
-        roll = random.random()
-        if roll < 0.60:
-            rarity = Rarity.COMMON
-        elif roll < 0.85:
-            rarity = Rarity.RARE
-        elif roll < 0.97:
-            rarity = Rarity.EPIC
-        else:
-            rarity = Rarity.LEGENDARY
-        base_names = {
-            Rarity.COMMON: ["Common Cutter", "Simple Sickle"],
-            Rarity.RARE: ["Rare Sickle", "Polished Blade"],
-            Rarity.EPIC: ["Epic Blade", "Runed Sword"],
-            Rarity.LEGENDARY: ["Legendary Axe", "Phoenix Cutter"]
-        }
-        name = random.choice(base_names[rarity])
-        damage_multiplier = {
-            Rarity.COMMON: 100,
-            Rarity.RARE: 120,
-            Rarity.EPIC: 150,
-            Rarity.LEGENDARY: 190
-        }[rarity]
+        """铸造一个随机新武器(需要一定金币)"""
         try:
-            tx = self.contract.functions.mintWeapon(
-                self.account,
-                name,
-                rarity.value,
-                damage_multiplier
-            ).build_transaction({
+            # 需求金币阈值
+            required_coins = 20
+            if self.coins < required_coins:
+                print(f"金币不足，需 {required_coins}，当前 {self.coins}")
+                return
+            # 随机稀有度（倾斜概率）
+            roll = random.random()
+            if roll < 0.60:
+                rarity = Rarity.COMMON
+            elif roll < 0.85:
+                rarity = Rarity.RARE
+            elif roll < 0.97:
+                rarity = Rarity.EPIC
+            else:
+                rarity = Rarity.LEGENDARY
+            base_names = {
+                Rarity.COMMON: ["Common Cutter", "Simple Sickle"],
+                Rarity.RARE: ["Rare Sickle", "Polished Blade"],
+                Rarity.EPIC: ["Epic Blade", "Runed Sword"],
+                Rarity.LEGENDARY: ["Legendary Axe", "Phoenix Cutter"]
+            }
+            name = random.choice(base_names[rarity])
+            # 伤害乘数整数存储（100 基础）
+            damage_multiplier = {
+                Rarity.COMMON: 100,
+                Rarity.RARE: 120,
+                Rarity.EPIC: 150,
+                Rarity.LEGENDARY: 190
+            }[rarity]
+            print(f"铸造武器: {name} 稀有度 {rarity.name} 伤害 {damage_multiplier}")
+            tx = self.contract.functions.mintWeapon(self.account, name, rarity.value, damage_multiplier).build_transaction({
                 'from': self.account,
                 'gas': 350000,
                 'gasPrice': self.w3.to_wei('2', 'gwei'),
@@ -862,115 +1356,67 @@ class BlockchainGame:
             tx_hash = self.w3.eth.send_transaction(tx)
             print(f"⏳ 铸造交易发送: {tx_hash.hex()} 等待确认...")
             receipt = self.w3.eth.wait_for_transaction_receipt(tx_hash)
-            status = getattr(receipt, 'status', 1)
+            status = receipt.get('status', 1) if isinstance(receipt, dict) else getattr(receipt, 'status', 1)
             if status == 1:
                 print("✅ 铸造成功")
                 self.load_player_data()
+                # 不减少链上金币（合约未实现扣除），可在未来扩展。这里仅提示。
+                print("提示: 合约暂未扣减金币，后续可添加 spend 函数。")
             else:
                 print("❌ 铸造交易失败")
-        except Exception as err:
-            print(f"铸造失败: {err}")
-
-    def purchase_weapon(self, weapon):
-        if not self.blockchain_available:
-            print("⚠️ 离线模式无法购买武器")
-            return
-        try:
-            tx = self.contract.functions.purchaseWeapon(weapon['id']).build_transaction({
-                'from': self.account,
-                'value': weapon['price'],
-                'gas': 300000,
-                'gasPrice': self.w3.to_wei('2', 'gwei'),
-                'nonce': self.w3.eth.get_transaction_count(self.account)
-            })
-            tx_hash = self.w3.eth.send_transaction(tx)
-            print(f"⏳ 购买交易发送: {tx_hash.hex()} 等待确认...")
-            receipt = self.w3.eth.wait_for_transaction_receipt(tx_hash)
-            status = getattr(receipt, 'status', 1)
-            if status == 1:
-                print("✅ 购买成功")
-                self.load_player_data()
-                self.load_market_weapons()
-            else:
-                print("❌ 购买交易失败")
-        except Exception as err:
-            print(f"购买失败: {err}")
-
-    def list_weapon_for_sale(self, weapon):
-        if not self.blockchain_available:
-            print("⚠️ 离线模式无法上架武器")
-            return
-        base_price = 0.01 * (1 + weapon['rarity'].value * 0.5)
-        price_wei = self.w3.to_wei(base_price, 'ether')
-        try:
-            tx = self.contract.functions.listWeaponForSale(weapon['id'], price_wei).build_transaction({
-                'from': self.account,
-                'gas': 250000,
-                'gasPrice': self.w3.to_wei('2', 'gwei'),
-                'nonce': self.w3.eth.get_transaction_count(self.account)
-            })
-            tx_hash = self.w3.eth.send_transaction(tx)
-            print(f"⏳ 上架交易发送: {tx_hash.hex()} 等待确认...")
-            receipt = self.w3.eth.wait_for_transaction_receipt(tx_hash)
-            status = getattr(receipt, 'status', 1)
-            if status == 1:
-                print("✅ 上架成功")
-                self.load_player_data()
-                self.load_market_weapons()
-            else:
-                print("❌ 上架交易失败")
-        except Exception as err:
-            print(f"上架失败: {err}")
+        except Exception as e:
+            print(f"铸造失败: {e}")
 
 
 def main():
-    try:
-        print("🚀 开始初始化游戏...")
-        game = BlockchainGame()
-        print("✅ 游戏初始化完成，开始主循环...")
+    game = BlockchainGame()
+    clock = pygame.time.Clock()
+    running = True
 
-        clock = pygame.time.Clock()
-        running = True
-
-        while running:
-            for event in pygame.event.get():
-                if event.type == pygame.QUIT:
-                    running = False
-                elif event.type == pygame.KEYDOWN:
-                    if event.key == pygame.K_ESCAPE:
-                        running = False
+    while running:
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                running = False
+            elif event.type == pygame.KEYDOWN:
+                # 若上架弹窗打开，则由弹窗处理键盘事件
+                if game.show_listing_modal:
+                    game.handle_listing_key(event)
+                else:
+                    if event.key == pygame.K_m:
+                        game.game_state = "marketplace"
                     elif event.key == pygame.K_i:
-                        game.toggle_inventory()
-                    elif event.key == pygame.K_m:
-                        game.toggle_market()
-                    elif event.key == pygame.K_n:
-                        game.mint_random_weapon()
+                        game.game_state = "inventory"
+                        game.load_player_data()  # 刷新数据
                     elif event.key == pygame.K_r:
                         game.generate_grass()
+                    elif event.key == pygame.K_ESCAPE:
+                        game.game_state = "playing"
+                    elif event.key == pygame.K_n:
+                        game.mint_random_weapon()
+            elif event.type == pygame.MOUSEBUTTONDOWN:
+                if event.button == 1:
+                    # 若弹窗打开则由弹窗处理点击
+                    if game.show_listing_modal:
+                        game.handle_listing_click(event.pos)
+                    else:
+                        game.handle_click(event.pos)
 
-                if game.game_state == "inventory":
-                    game.handle_inventory_input(event)
-                elif game.game_state == "marketplace":
-                    game.handle_market_input(event)
+        # 旋转除草
+        keys = pygame.key.get_pressed()
+        if keys[pygame.K_SPACE]:
+            game.rotate_weapon()
+        # 玩家移动
+        game.handle_player_movement()
+        # 定时尝试 flush（在不旋转时也能触发）
+        game.maybe_flush_points()
+        game.tick_auto_refresh()
 
-            keys = pygame.key.get_pressed()
-            if game.game_state == "playing" and keys[pygame.K_SPACE]:
-                game.rotate_weapon()
+        game.draw(screen)
+        pygame.display.flip()
+        clock.tick(60)
 
-            game.handle_player_movement()
-            game.tick_auto_refresh()
-            screen.fill(WHITE)
-            game.draw(screen)
-            pygame.display.flip()
-            clock.tick(60)
-
-    except Exception as e:
-        print(f"❌ 游戏运行错误: {e}")
-        import traceback
-        traceback.print_exc()
-    finally:
-        pygame.quit()
-        sys.exit()
+    pygame.quit()
+    sys.exit()
 
 
 if __name__ == "__main__":
