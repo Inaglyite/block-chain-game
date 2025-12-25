@@ -20,6 +20,7 @@ THEME = {
     "danger": (239, 68, 68),            # 红色警告
     "danger_light": (252, 165, 165),    # 浅红色
     "success": (34, 197, 94),           # 成功绿
+    "info": (59, 130, 246),             # 信息蓝
     "white": (255, 255, 255),
     "light_gray": (226, 232, 240),      # 浅灰
     "mid_gray": (148, 163, 184),        # 中灰
@@ -282,16 +283,16 @@ class UIRenderer:
             surface.blit(empty_text, (WIDTH // 2 - empty_text.get_width() // 2, HEIGHT // 2))
             surface.blit(hint_text, (WIDTH // 2 - hint_text.get_width() // 2, HEIGHT // 2 + 35))
         else:
-            start_y = 130
-            line_height = 70
-            max_visible = 8
+            start_y = 120
+            line_height = 90
+            max_visible = 6
             offset = max(0, game.inventory_selection - max_visible + 1)
 
             for idx in range(offset, min(len(game.weapons), offset + max_visible)):
                 weapon = game.weapons[idx]
                 y = start_y + (idx - offset) * line_height
 
-                card_rect = pygame.Rect(100, y, WIDTH - 200, line_height - 10)
+                card_rect = pygame.Rect(80, y, WIDTH - 160, line_height - 10)
 
                 # 选中状态
                 is_selected = idx == game.inventory_selection
@@ -299,36 +300,74 @@ class UIRenderer:
                 border_color = THEME["primary"] if is_selected else THEME["light_gray"]
                 border_width = 3 if is_selected else 1
 
-                # 使用新的卡片绘制函数
+                # 绘制卡片
                 draw_card_with_shadow(surface, card_rect, bg_color, border_color, border_width, 12)
 
-                # 稀有度色条 - 更宽更明显
+                # 稀有度色条
                 rarity_color = game.get_rarity_color(weapon['rarity'])
-                rarity_bar = pygame.Rect(card_rect.x + 8, card_rect.y + 8, 6, card_rect.height - 16)
+                rarity_bar = pygame.Rect(card_rect.x + 8, card_rect.y + 10, 6, card_rect.height - 20)
                 pygame.draw.rect(surface, rarity_color, rarity_bar, border_radius=3)
 
-                # 武器信息布局
-                content_x = card_rect.x + 30
+                # 布局：从左到右分区
+                # 区域1：武器图片 (左侧)
+                sprite_x = card_rect.x + 30
+                sprite = game.weapon_manager.get_weapon_sprite(weapon)
+                if sprite:
+                    # 缩放武器图片
+                    scale_factor = 1.5
+                    scaled_sprite = pygame.transform.scale(
+                        sprite,
+                        (int(sprite.get_width() * scale_factor), int(sprite.get_height() * scale_factor))
+                    )
+                    sprite_rect = scaled_sprite.get_rect(center=(sprite_x + 40, card_rect.centery))
+                    surface.blit(scaled_sprite, sprite_rect)
 
-                # ID标签
+                # 区域2：基本信息 (中左)
+                info_x = sprite_x + 90
+                info_y = card_rect.y + 15
+
+                # ID
                 id_text = small_font.render(f"#{weapon['id']:03d}", True, THEME["mid_gray"])
-                surface.blit(id_text, (content_x, y + 22))
+                surface.blit(id_text, (info_x, info_y))
 
-                # 武器名称 - 加粗效果
-                name_text = header_font.render(weapon['name'], True, rarity_color)
-                surface.blit(name_text, (content_x + 70, y + 15))
+                # 武器名称
+                name_text = default_font.render(weapon['name'], True, rarity_color)
+                surface.blit(name_text, (info_x, info_y + 25))
 
-                # 属性标签
-                stats_text = f"{weapon['rarity'].name} | 伤害 x{weapon['damage_multiplier']:.1f}"
-                stats_surf = small_font.render(stats_text, True, THEME["text"])
-                surface.blit(stats_surf, (content_x + 280, y + 25))
+                # 区域3：属性信息 (中右)
+                attr_x = info_x + 280
+                attr_y = card_rect.y + 12
 
-                # 如果是当前装备，显示标记
+                # 稀有度标签
+                rarity_names = {0: "普通", 1: "稀有", 2: "史诗", 3: "传说"}
+                rarity_name = rarity_names.get(weapon['rarity'].value, "未知")
+                rarity_badge = pygame.Rect(attr_x, attr_y, 70, 24)
+                pygame.draw.rect(surface, rarity_color, rarity_badge, border_radius=5)
+                rarity_text = small_font.render(rarity_name, True, THEME["white"])
+                rarity_text_x = rarity_badge.centerx - rarity_text.get_width() // 2
+                surface.blit(rarity_text, (rarity_text_x, rarity_badge.y + 5))
+
+                # 伤害信息
+                damage_text = small_font.render(f"伤害: {weapon['damage_multiplier']:.1f}x", True, THEME["text"])
+                surface.blit(damage_text, (attr_x, attr_y + 30))
+
+                # 磨损度信息
+                if weapon.get('wear') is not None:
+                    from .utils import get_condition_name
+                    condition_str = get_condition_name(weapon['wear']).split('(')[0].strip()
+                    wear_text = small_font.render(f"品相: {condition_str}", True, THEME["info"])
+                    surface.blit(wear_text, (attr_x, attr_y + 50))
+
+                # 区域4：状态标记 (右侧)
+                status_x = card_rect.right - 100
+                status_y = card_rect.centery - 12
+
                 if idx == game.current_weapon_index:
-                    equipped_badge = pygame.Rect(card_rect.right - 90, y + 20, 70, 25)
-                    pygame.draw.rect(surface, THEME["success"], equipped_badge, border_radius=5)
+                    equipped_badge = pygame.Rect(status_x, status_y, 80, 26)
+                    pygame.draw.rect(surface, THEME["success"], equipped_badge, border_radius=6)
                     equipped_text = small_font.render("已装备", True, THEME["white"])
-                    surface.blit(equipped_text, (equipped_badge.x + 10, equipped_badge.y + 5))
+                    equipped_text_x = equipped_badge.centerx - equipped_text.get_width() // 2
+                    surface.blit(equipped_text, (equipped_text_x, equipped_badge.y + 6))
 
         # 底部操作栏
         bottom_rect = pygame.Rect(0, HEIGHT - 80, WIDTH, 80)
@@ -423,15 +462,15 @@ class UIRenderer:
             surface.blit(hint_text, (WIDTH // 2 - hint_text.get_width() // 2, HEIGHT // 2 + 35))
         else:
             start_y = 120
-            line_height = 75
-            max_visible = 8
+            line_height = 95
+            max_visible = 6
             offset = max(0, game.market_selection - max_visible + 1)
             
             for idx in range(offset, min(len(game.market_weapons), offset + max_visible)):
                 weapon = game.market_weapons[idx]
                 y = start_y + (idx - offset) * line_height
 
-                card_rect = pygame.Rect(80, y, WIDTH - 160, line_height - 10)
+                card_rect = pygame.Rect(70, y, WIDTH - 140, line_height - 10)
 
                 is_selected = idx == game.market_selection
                 bg_color = THEME["highlight"] if is_selected else THEME["card_bg"]
@@ -443,46 +482,81 @@ class UIRenderer:
 
                 # 稀有度色条
                 rarity_color = game.get_rarity_color(weapon['rarity'])
-                rarity_bar = pygame.Rect(card_rect.x + 10, card_rect.y + 10, 8, card_rect.height - 20)
-                pygame.draw.rect(surface, rarity_color, rarity_bar, border_radius=4)
+                rarity_bar = pygame.Rect(card_rect.x + 10, card_rect.y + 12, 6, card_rect.height - 24)
+                pygame.draw.rect(surface, rarity_color, rarity_bar, border_radius=3)
 
-                # 内容区域
-                content_x = card_rect.x + 35
+                # 布局：从左到右分区
+                # 区域1：武器图片 (左侧)
+                sprite_x = card_rect.x + 30
+                sprite = game.weapon_manager.get_weapon_sprite(weapon)
+                if sprite:
+                    scale_factor = 1.5
+                    scaled_sprite = pygame.transform.scale(
+                        sprite,
+                        (int(sprite.get_width() * scale_factor), int(sprite.get_height() * scale_factor))
+                    )
+                    sprite_rect = scaled_sprite.get_rect(center=(sprite_x + 40, card_rect.centery))
+                    surface.blit(scaled_sprite, sprite_rect)
 
-                # 武器ID
+                # 区域2：基本信息 (中左)
+                info_x = sprite_x + 90
+                info_y = card_rect.y + 12
+
+                # ID
                 id_text = small_font.render(f"#{weapon['id']:03d}", True, THEME["mid_gray"])
-                surface.blit(id_text, (content_x, y + 25))
+                surface.blit(id_text, (info_x, info_y))
 
                 # 武器名称
-                name_text = header_font.render(weapon['name'], True, THEME["text"])
-                surface.blit(name_text, (content_x + 70, y + 20))
+                name_text = default_font.render(weapon['name'], True, rarity_color)
+                surface.blit(name_text, (info_x, info_y + 22))
+
+                # 卖家信息
+                owner_short = f"{weapon['owner'][:10]}..."
+                owner_text = small_font.render(f"卖家: {owner_short}", True, THEME["mid_gray"])
+                surface.blit(owner_text, (info_x, info_y + 50))
+
+                # 区域3：属性标签 (中)
+                attr_x = info_x + 280
+                attr_y = card_rect.y + 15
 
                 # 稀有度标签
-                rarity_badge = pygame.Rect(content_x + 250, y + 22, 80, 25)
+                rarity_names = {0: "普通", 1: "稀有", 2: "史诗", 3: "传说"}
+                rarity_name = rarity_names.get(weapon['rarity'].value, "未知")
+                rarity_badge = pygame.Rect(attr_x, attr_y, 70, 24)
                 pygame.draw.rect(surface, rarity_color, rarity_badge, border_radius=5)
-                rarity_text = small_font.render(weapon['rarity'].name, True, THEME["white"])
-                surface.blit(rarity_text, (rarity_badge.x + 10, rarity_badge.y + 5))
+                rarity_text = small_font.render(rarity_name, True, THEME["white"])
+                rarity_text_x = rarity_badge.centerx - rarity_text.get_width() // 2
+                surface.blit(rarity_text, (rarity_text_x, rarity_badge.y + 5))
 
-                # 价格标签 - 醒目设计
-                price_x = content_x + 380
+                # 磨损度信息
+                if weapon.get('wear') is not None:
+                    from .utils import get_condition_name
+                    condition_str = get_condition_name(weapon['wear']).split('(')[0].strip()
+                    wear_text = small_font.render(condition_str, True, THEME["white"])
+                    # 根据文字宽度调整标签宽度
+                    wear_badge_width = max(70, wear_text.get_width() + 16)
+                    wear_badge = pygame.Rect(attr_x, attr_y + 32, wear_badge_width, 24)
+                    pygame.draw.rect(surface, THEME["info"], wear_badge, border_radius=5)
+                    wear_text_x = wear_badge.centerx - wear_text.get_width() // 2
+                    surface.blit(wear_text, (wear_text_x, wear_badge.y + 5))
+
+                # 区域4：价格 (右侧)
+                price_x = card_rect.right - 150
+                price_y = card_rect.centery - 18
+
                 if weapon.get('coin_price', 0) > 0:
                     price_text = f"{weapon['coin_price']} 金币"
                     price_color = THEME["accent"]
-                    price_bg_color = THEME["accent_light"]
                 else:
-                    price_text = f"{game.format_price_display(weapon['price'])} ETH"
+                    eth_price = game.blockchain_manager.w3.from_wei(weapon['price'], 'ether')
+                    price_text = f"{eth_price:.4f} ETH"
                     price_color = THEME["primary"]
-                    price_bg_color = THEME["primary_light"]
 
+                price_badge = pygame.Rect(price_x, price_y, 130, 36)
+                pygame.draw.rect(surface, price_color, price_badge, border_radius=8)
                 price_surf = default_font.render(price_text, True, THEME["white"])
-                price_rect = pygame.Rect(price_x, y + 20, price_surf.get_width() + 20, 28)
-                pygame.draw.rect(surface, price_color, price_rect, border_radius=6)
-                surface.blit(price_surf, (price_rect.x + 10, price_rect.y + 5))
-
-                # 卖家信息
-                owner_short = f"{weapon['owner'][:8]}..."
-                owner_text = small_font.render(f"卖家: {owner_short}", True, THEME["mid_gray"])
-                surface.blit(owner_text, (content_x + 650, y + 28))
+                price_surf_x = price_badge.centerx - price_surf.get_width() // 2
+                surface.blit(price_surf, (price_surf_x, price_badge.y + 8))
 
         # 底部信息栏
         bottom_rect = pygame.Rect(0, HEIGHT - 90, WIDTH, 90)
@@ -556,11 +630,12 @@ class UIRenderer:
         menu_items = [
             ("个人中心", "查看你的资料和成就", THEME["primary"]),
             ("开始游戏", "进入游戏世界", THEME["secondary"]),
-            ("排行榜", "查看全球玩家排名", THEME["accent"])
+            ("排行榜", "查看全球玩家排名", THEME["accent"]),
+            ("切换账户", "选择其他账户进行游戏", THEME["dark_gray"])
         ]
-        start_y = 280
-        button_height = 80
-        button_spacing = 25
+        start_y = 260
+        button_height = 70
+        button_spacing = 20
 
         for idx, (text, desc, color) in enumerate(menu_items):
             y = start_y + idx * (button_height + button_spacing)
@@ -592,15 +667,16 @@ class UIRenderer:
             pygame.draw.rect(surface, color if is_selected else THEME["light_gray"],
                            button_rect, 2 if is_selected else 1, border_radius=12)
 
-            # 文本内容
+            # 文本内容 - 居中对齐
             text_surf = header_font.render(text, True, text_color)
-            text_x = button_rect.x + 30
+            text_x = button_rect.centerx - text_surf.get_width() // 2
             text_y = button_rect.y + 18
             surface.blit(text_surf, (text_x, text_y))
 
-            # 描述文字
+            # 描述文字 - 居中，字体更小
             desc_surf = small_font.render(desc, True, desc_color)
-            surface.blit(desc_surf, (text_x, text_y + 35))
+            desc_x = button_rect.centerx - desc_surf.get_width() // 2
+            surface.blit(desc_surf, (desc_x, text_y + 35))
 
             # 右侧箭头（选中时）
             if is_selected:
@@ -741,7 +817,7 @@ class UIRenderer:
             surface.blit(value_surf, (stat_card.x + 80, stat_card.y + 45))
 
         # 当前装备卡片
-        weapon_card = pygame.Rect(stats_x, stats_y + 260, 600, 140)
+        weapon_card = pygame.Rect(stats_x, stats_y + 260, 600, 160)
         weapon = game.get_current_weapon()
         rarity_color = game.get_rarity_color(weapon['rarity'])
 
@@ -749,16 +825,34 @@ class UIRenderer:
 
         # 装备标题
         equip_label = default_font.render("当前装备", True, THEME["mid_gray"])
-        surface.blit(equip_label, (weapon_card.x + 25, weapon_card.y + 20))
+        surface.blit(equip_label, (weapon_card.x + 25, weapon_card.y + 15))
+
+        # 武器图片（左侧）
+        sprite = game.weapon_manager.get_weapon_sprite(weapon)
+        if sprite:
+            scale_factor = 2.0
+            scaled_sprite = pygame.transform.scale(
+                sprite,
+                (int(sprite.get_width() * scale_factor), int(sprite.get_height() * scale_factor))
+            )
+            sprite_rect = scaled_sprite.get_rect(center=(weapon_card.x + 80, weapon_card.y + 95))
+            surface.blit(scaled_sprite, sprite_rect)
+
+        # 武器信息（右侧，避免重叠）
+        info_x = weapon_card.x + 150
 
         # 武器名称
-        weapon_name = title_font.render(weapon['name'], True, rarity_color)
-        surface.blit(weapon_name, (weapon_card.x + 25, weapon_card.y + 50))
+        weapon_name = default_font.render(weapon['name'], True, rarity_color)
+        surface.blit(weapon_name, (info_x, weapon_card.y + 50))
 
-        # 武器属性
-        stats_text = f"{weapon['rarity'].name} | 伤害倍率: x{weapon['damage_multiplier']:.1f}"
-        stats_surf = default_font.render(stats_text, True, THEME["text"])
-        surface.blit(stats_surf, (weapon_card.x + 25, weapon_card.y + 95))
+        # 武器属性（换行显示）
+        rarity_text = f"稀有度: {weapon['rarity'].name}"
+        rarity_surf = small_font.render(rarity_text, True, THEME["text"])
+        surface.blit(rarity_surf, (info_x, weapon_card.y + 80))
+
+        damage_text = f"伤害倍率: x{weapon['damage_multiplier']:.1f}"
+        damage_surf = small_font.render(damage_text, True, THEME["text"])
+        surface.blit(damage_surf, (info_x, weapon_card.y + 105))
 
         # 稀有度指示条
         rarity_bar = pygame.Rect(weapon_card.right - 15, weapon_card.y + 15, 8, weapon_card.height - 30)
@@ -773,6 +867,8 @@ class UIRenderer:
         if game.profile_editing_name:
             hint_text = "输入名称后按 Enter 保存  |  ESC 取消"
             hint_color = THEME["primary"]
+            hint_surf = default_font.render(hint_text, True, hint_color)
+            surface.blit(hint_surf, (WIDTH // 2 - hint_surf.get_width() // 2, HEIGHT - 50))
         else:
             hints = [
                 ("N", "修改名称", THEME["primary"]),
@@ -786,16 +882,14 @@ class UIRenderer:
                 pygame.draw.rect(surface, color, key_rect, border_radius=5)
 
                 key_text = default_font.render(key, True, THEME["white"])
-                surface.blit(key_text, (key_rect.x + 8, key_rect.y + 5))
+                # 按键文字居中
+                key_text_x = key_rect.centerx - key_text.get_width() // 2
+                surface.blit(key_text, (key_text_x, key_rect.y + 5))
 
                 action_text = default_font.render(action, True, THEME["text"])
                 surface.blit(action_text, (key_rect.right + 10, HEIGHT - 50))
 
                 hint_x += key_rect.width + action_text.get_width() + 35
-            return
-
-        hint_surf = default_font.render(hint_text, True, hint_color)
-        surface.blit(hint_surf, (WIDTH // 2 - hint_surf.get_width() // 2, HEIGHT - 50))
 
     @staticmethod
     def draw_leaderboard(surface, game):
@@ -884,24 +978,33 @@ class UIRenderer:
             # 玩家名称
             name = entry['name'] if entry['name'] else f"玩家{entry['address'][-4:]}"
             name_surf = default_font.render(name, True, THEME["text"])
-            surface.blit(name_surf, (col_x[1], y + 15))
+            # 垂直居中
+            name_y = y + (line_height - name_surf.get_height()) // 2
+            surface.blit(name_surf, (col_x[1], name_y))
 
             # 当前玩家标记
             if is_current:
-                you_badge = pygame.Rect(col_x[1] + name_surf.get_width() + 10, y + 17, 45, 22)
+                you_badge = pygame.Rect(col_x[1] + name_surf.get_width() + 10, name_y, 45, 22)
                 pygame.draw.rect(surface, THEME["secondary"], you_badge, border_radius=4)
                 you_text = small_font.render("YOU", True, THEME["white"])
-                surface.blit(you_text, (you_badge.x + 8, you_badge.y + 3))
+                # 文字在徽章内居中
+                you_text_x = you_badge.centerx - you_text.get_width() // 2
+                you_text_y = you_badge.centery - you_text.get_height() // 2
+                surface.blit(you_text, (you_text_x, you_text_y))
 
             # 地址
             addr = f"{entry['address'][:10]}...{entry['address'][-6:]}"
             addr_surf = small_font.render(addr, True, THEME["mid_gray"])
-            surface.blit(addr_surf, (col_x[2], y + 17))
+            # 垂直居中
+            addr_y = y + (line_height - addr_surf.get_height()) // 2
+            surface.blit(addr_surf, (col_x[2], addr_y))
 
             # 分数 - 突出显示
             score_text = str(entry['score'])
             score_surf = header_font.render(score_text, True, THEME["primary"])
-            surface.blit(score_surf, (col_x[3], y + 12))
+            # 垂直居中
+            score_y = y + (line_height - score_surf.get_height()) // 2
+            surface.blit(score_surf, (col_x[3], score_y))
 
         # 底部信息栏
         bottom_rect = pygame.Rect(0, HEIGHT - 90, WIDTH, 90)
@@ -939,4 +1042,161 @@ class UIRenderer:
 
             hint_x += key_rect.width + action_text.get_width() + 35
 
+    @staticmethod
+    def draw_account_select(surface, game):
+        """绘制账户选择界面"""
+        # 渐变背景
+        bg_rect = pygame.Rect(0, 0, WIDTH, HEIGHT)
+        draw_gradient_rect(surface, bg_rect, THEME["background"], THEME["white"], vertical=True)
+
+        # 标题
+        title_y = 60
+        title = header_font.render("选择账户", True, THEME["primary"])
+        surface.blit(title, (WIDTH // 2 - title.get_width() // 2, title_y))
+
+        # 说明文字
+        subtitle = small_font.render("选择一个账户进行游戏，用于测试市场交易功能", True, THEME["mid_gray"])
+        surface.blit(subtitle, (WIDTH // 2 - subtitle.get_width() // 2, title_y + 45))
+
+        # 当前账户信息
+        current_account = game.blockchain_manager.account
+        current_short = f"{current_account[:6]}...{current_account[-4:]}"
+        current_text = default_font.render(f"当前账户: {current_short}", True, THEME["text"])
+        current_rect = pygame.Rect(WIDTH // 2 - 200, title_y + 85, 400, 35)
+        pygame.draw.rect(surface, THEME["success"], current_rect, border_radius=8)
+        surface.blit(current_text, (current_rect.x + 15, current_rect.y + 8))
+
+        # 账户列表
+        accounts = game.all_accounts
+        if not accounts:
+            no_accounts = header_font.render("没有可用账户", True, THEME["danger"])
+            surface.blit(no_accounts, (WIDTH // 2 - no_accounts.get_width() // 2, HEIGHT // 2))
+            return
+
+        start_y = 200
+        item_height = 80
+        item_spacing = 15
+        visible_items = min(6, len(accounts))
+
+        # 计算滚动偏移
+        if len(accounts) > visible_items:
+            scroll_offset = max(0, min(game.account_selection - visible_items // 2, len(accounts) - visible_items))
+        else:
+            scroll_offset = 0
+
+        # 绘制账户列表
+        for i in range(scroll_offset, min(scroll_offset + visible_items, len(accounts))):
+            account = accounts[i]
+            idx = i
+            y = start_y + (i - scroll_offset) * (item_height + item_spacing)
+
+            # 账户卡片
+            card_rect = pygame.Rect(WIDTH // 2 - 350, y, 700, item_height)
+            is_selected = idx == game.account_selection
+            is_current = account == current_account
+
+            if is_selected:
+                # 选中状态
+                draw_gradient_rect(surface, card_rect, THEME["primary"], THEME["primary_light"])
+                text_color = THEME["white"]
+                info_color = THEME["white"]
+
+                # 发光效果
+                glow_rect = card_rect.inflate(6, 6)
+                glow_surf = pygame.Surface((glow_rect.width, glow_rect.height), pygame.SRCALPHA)
+                pygame.draw.rect(glow_surf, (*THEME["primary"], 50), (0, 0, glow_rect.width, glow_rect.height),
+                               border_radius=12)
+                surface.blit(glow_surf, glow_rect.topleft)
+            elif is_current:
+                # 当前账户
+                draw_card_with_shadow(surface, card_rect, THEME["success"], THEME["light_gray"], 1, 10)
+                text_color = THEME["white"]
+                info_color = THEME["white"]
+                pygame.draw.rect(surface, THEME["success"], card_rect, 2, border_radius=10)
+            else:
+                # 普通状态
+                draw_card_with_shadow(surface, card_rect, THEME["white"], THEME["card_shadow"], 1, 10)
+                text_color = THEME["text"]
+                info_color = THEME["mid_gray"]
+                pygame.draw.rect(surface, THEME["light_gray"], card_rect, 1, border_radius=10)
+
+            # 账户索引
+            index_text = header_font.render(f"#{idx}", True, text_color)
+            surface.blit(index_text, (card_rect.x + 20, card_rect.y + 15))
+
+            # 账户地址
+            short_addr = f"{account[:10]}...{account[-8:]}"
+            addr_text = default_font.render(short_addr, True, text_color)
+            surface.blit(addr_text, (card_rect.x + 100, card_rect.y + 15))
+
+            # 获取账户余额和统计
+            try:
+                if game.blockchain_manager.blockchain_available:
+                    w3 = game.blockchain_manager.w3
+                    balance_wei = w3.eth.get_balance(account)
+                    balance_eth = w3.from_wei(balance_wei, 'ether')
+                    balance_text = f"余额: {balance_eth:.4f} ETH"
+
+                    # 获取该账户的游戏统计
+                    score, coins = game.blockchain_manager.load_player_stats(account)
+                    stats_text = f"分数: {score} | 金币: {coins}"
+                else:
+                    balance_text = "离线模式"
+                    stats_text = ""
+            except:
+                balance_text = "无法获取"
+                stats_text = ""
+
+            balance_surf = small_font.render(balance_text, True, info_color)
+            surface.blit(balance_surf, (card_rect.x + 100, card_rect.y + 45))
+
+            if stats_text:
+                stats_surf = small_font.render(stats_text, True, info_color)
+                surface.blit(stats_surf, (card_rect.x + 350, card_rect.y + 45))
+
+            # 当前账户标记
+            if is_current:
+                badge_rect = pygame.Rect(card_rect.right - 80, card_rect.y + 10, 70, 25)
+                pygame.draw.rect(surface, THEME["white"], badge_rect, border_radius=12)
+                badge_text = small_font.render("当前", True, THEME["success"])
+                surface.blit(badge_text, (badge_rect.x + 15, badge_rect.y + 4))
+
+        # 滚动指示器
+        if len(accounts) > visible_items:
+            scroll_bar_x = WIDTH // 2 + 370
+            scroll_bar_height = visible_items * (item_height + item_spacing) - item_spacing
+            scroll_bar_rect = pygame.Rect(scroll_bar_x, start_y, 8, scroll_bar_height)
+            pygame.draw.rect(surface, THEME["light_gray"], scroll_bar_rect, border_radius=4)
+
+            # 滚动条滑块
+            thumb_height = max(30, scroll_bar_height * visible_items / len(accounts))
+            thumb_y = start_y + (scroll_bar_height - thumb_height) * scroll_offset / (len(accounts) - visible_items)
+            thumb_rect = pygame.Rect(scroll_bar_x, thumb_y, 8, thumb_height)
+            pygame.draw.rect(surface, THEME["primary"], thumb_rect, border_radius=4)
+
+        # 底部操作栏背景
+        bottom_rect = pygame.Rect(0, HEIGHT - 80, WIDTH, 80)
+        pygame.draw.rect(surface, THEME["white"], bottom_rect)
+        pygame.draw.line(surface, THEME["light_gray"], (0, HEIGHT - 80), (WIDTH, HEIGHT - 80), 2)
+
+        # 操作提示
+        hints_y = HEIGHT - 55
+        hints = [
+            ("↑↓", "选择", THEME["primary"]),
+            ("Enter", "确认", THEME["secondary"]),
+            ("ESC", "返回", THEME["mid_gray"])
+        ]
+
+        hint_x = WIDTH // 2 - 200
+        for key, action, color in hints:
+            key_rect = pygame.Rect(hint_x, hints_y, len(key) * 15 + 10, 30)
+            pygame.draw.rect(surface, color, key_rect, border_radius=5)
+
+            key_text = default_font.render(key, True, THEME["white"])
+            surface.blit(key_text, (key_rect.x + 8, key_rect.y + 5))
+
+            action_text = default_font.render(action, True, THEME["text"])
+            surface.blit(action_text, (key_rect.right + 10, hints_y + 5))
+
+            hint_x += key_rect.width + action_text.get_width() + 35
 

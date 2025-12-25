@@ -53,6 +53,19 @@ def main():
             for event in pygame.event.get():
                 if event.type == pygame.QUIT:
                     running = False
+
+                # 处理开箱结果弹窗（最高优先级）
+                if game.show_case_open_result:
+                    if event.type == pygame.KEYDOWN:
+                        game.close_case_result()
+                    continue
+
+                # 处理鼠标点击事件（用于箱子商店NPC交互）
+                if event.type == pygame.MOUSEBUTTONDOWN:
+                    if game.game_state == "case_shop":
+                        game.handle_case_shop_input(event)
+                        continue
+
                 elif event.type == pygame.KEYDOWN:
                     # 游戏中的快捷键
                     if game.game_state == "playing":
@@ -60,10 +73,13 @@ def main():
                             game.toggle_inventory()
                         elif event.key == pygame.K_m:
                             game.toggle_market()
-                        elif event.key == pygame.K_n:
-                            game.mint_random_weapon()
                         elif event.key == pygame.K_r:
                             game.generate_grass()
+                        elif event.key == pygame.K_c:
+                            # 打开箱子商店
+                            game.load_case_data()
+                            game.game_state = "case_shop"
+                            game.case_shop_selection = 0
                         elif event.key == pygame.K_ESCAPE:
                             # 从游戏返回开始菜单
                             game.game_state = "start_menu"
@@ -83,10 +99,16 @@ def main():
                     game.handle_profile_input(event)
                 elif game.game_state == "leaderboard":
                     game.handle_leaderboard_input(event)
+                elif game.game_state == "account_select":
+                    game.handle_account_select_input(event)
                 elif game.game_state == "inventory":
                     game.handle_inventory_input(event)
                 elif game.game_state == "marketplace":
                     game.handle_market_input(event)
+                elif game.game_state == "case_shop":
+                    game.handle_case_shop_input(event)
+                elif game.game_state == "case_inventory":
+                    game.handle_case_inventory_input(event)
 
             keys = pygame.key.get_pressed()
             if game.game_state == "playing" and keys[pygame.K_SPACE]:

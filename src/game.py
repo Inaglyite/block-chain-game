@@ -49,6 +49,17 @@ class BlockchainGame:
         self.flush_interval_ms = 3000
         self.last_refresh_block = 0
         
+        # 箱子相关
+        self.case_shop_selection = 0
+        self.case_inventory = {}  # case_id => amount
+        self.case_inventory_selection = 0
+        self.all_cases = []  # 所有可用的箱子
+        self.show_case_open_result = False
+        self.opened_weapon = None  # 开箱获得的武器
+
+        # 箱子图片缓存
+        self.case_sprites = {}  # case_name => surface
+
         # 玩家信息
         self.player_name = ""
         self.player_rank = 0
@@ -63,7 +74,11 @@ class BlockchainGame:
         self.profile_name_input = ""
 
         # 开始菜单
-        self.menu_selection = 0  # 0=个人中心, 1=开始游戏, 2=排行榜
+        self.menu_selection = 0  # 0=个人中心, 1=开始游戏, 2=排行榜, 3=切换账户
+
+        # 账户选择
+        self.account_selection = 0
+        self.all_accounts = []
 
         # 玩家属性
         self.player_x = 0
@@ -103,7 +118,8 @@ class BlockchainGame:
         self.load_player_data()
         self.generate_grass()
         self.load_market_weapons()
-        
+        self.load_case_data()
+
         print("游戏初始化完成!")
     
     def set_game_state(self, state):
@@ -212,6 +228,10 @@ class BlockchainGame:
         self.player_name = self.blockchain_manager.get_player_name(self.blockchain_manager.account)
         self.player_rank, self.total_players = self.blockchain_manager.get_player_rank(self.blockchain_manager.account)
 
+        # 加载所有可用账户
+        self.all_accounts = self.blockchain_manager.get_all_accounts()
+        self.account_selection = self.blockchain_manager.account_index
+
     def load_market_weapons(self):
         """加载市场武器"""
         self.market_weapons = self.blockchain_manager.load_market_weapons(
@@ -219,6 +239,38 @@ class BlockchainGame:
         )
         self.market_last_refresh_ms = pygame.time.get_ticks()
     
+    def load_case_data(self):
+        """加载箱子数据"""
+        self.all_cases = self.blockchain_manager.get_all_cases()
+        self.case_inventory = self.blockchain_manager.get_user_case_inventory(
+            self.blockchain_manager.account
+        )
+        self._load_case_sprites()
+
+    def _load_case_sprites(self):
+        """加载箱子贴图"""
+        import os
+        case_name_map = {
+            "Knife Case": "刀箱子",
+            "Sword Case": "剑箱子",
+            "Axe Case": "斧头箱子",
+            "Sickle Case": "镰刀箱子"
+        }
+
+        for case in self.all_cases:
+            case_name = case['name']
+            if case_name in case_name_map:
+                filename = f"{case_name_map[case_name]}.png"
+                sprite_path = os.path.join("箱子图片", filename)
+                try:
+                    surf = pygame.image.load(sprite_path).convert_alpha()
+                    # 统一缩放到合适大小
+                    target_size = (80, 80)
+                    surf = pygame.transform.smoothscale(surf, target_size)
+                    self.case_sprites[case_name] = surf
+                except Exception as err:
+                    print(f"⚠️ 箱子图片加载失败 {sprite_path}: {err}")
+
     def load_leaderboard(self):
         """加载排行榜"""
         self.leaderboard = self.blockchain_manager.get_leaderboard(20)
@@ -498,6 +550,8 @@ class BlockchainGame:
             UIRenderer.draw_profile(surface, self)
         elif self.game_state == "leaderboard":
             UIRenderer.draw_leaderboard(surface, self)
+        elif self.game_state == "account_select":
+            UIRenderer.draw_account_select(surface, self)
         elif self.game_state == "playing":
             self.draw_game(surface)
             UIRenderer.draw_hud(surface, self, translucent=True)
@@ -509,6 +563,17 @@ class BlockchainGame:
             surface.fill(WHITE)
             UIRenderer.draw_inventory(surface, self)
             UIRenderer.draw_hud(surface, self, translucent=False)
+        elif self.game_state == "case_shop":
+            from .case_ui import CaseUIRenderer
+            CaseUIRenderer.draw_case_shop(surface, self)
+        elif self.game_state == "case_inventory":
+            from .case_ui import CaseUIRenderer
+            CaseUIRenderer.draw_case_inventory(surface, self)
+
+        # 开箱结果弹窗（覆盖在所有界面之上）
+        if self.show_case_open_result:
+            from .case_ui import CaseUIRenderer
+            CaseUIRenderer.draw_case_open_result(surface, self)
 
     def tick_auto_refresh(self):
         """自动刷新区块链数据"""
@@ -686,7 +751,7 @@ class BlockchainGame:
             if event.key == pygame.K_UP:
                 self.menu_selection = max(0, self.menu_selection - 1)
             elif event.key == pygame.K_DOWN:
-                self.menu_selection = min(2, self.menu_selection + 1)
+                self.menu_selection = min(3, self.menu_selection + 1)
             elif event.key in (pygame.K_RETURN, pygame.K_KP_ENTER):
                 if self.menu_selection == 0:  # 个人中心
                     self.game_state = "profile"
@@ -695,6 +760,11 @@ class BlockchainGame:
                 elif self.menu_selection == 2:  # 排行榜
                     self.load_leaderboard()
                     self.game_state = "leaderboard"
+                elif self.menu_selection == 3:  # 切换账户
+                    if self.blockchain_manager.blockchain_available and self.all_accounts:
+                        self.game_state = "account_select"
+                    else:
+                        print("⚠️ 区块链未连接或没有可用账户")
             elif event.key == pygame.K_ESCAPE:
                 return "quit"
         return None
@@ -749,5 +819,126 @@ class BlockchainGame:
             elif event.key == pygame.K_ESCAPE:
                 self.game_state = "start_menu"
 
+    def handle_account_select_input(self, event):
+        """处理账户选择输入"""
+        if event.type == pygame.KEYDOWN:
+            if event.key == pygame.K_UP:
+                self.account_selection = max(0, self.account_selection - 1)
+            elif event.key == pygame.K_DOWN:
+                self.account_selection = min(len(self.all_accounts) - 1, self.account_selection + 1)
+            elif event.key in (pygame.K_RETURN, pygame.K_KP_ENTER):
+                # 切换账户
+                if self.blockchain_manager.switch_account(self.account_selection):
+                    # 重新加载玩家数据
+                    self.load_player_data()
+                    self.game_state = "start_menu"
+                    print(f"✅ 已切换到账户 {self.account_selection}")
+            elif event.key == pygame.K_ESCAPE:
+                self.game_state = "start_menu"
 
+    def handle_case_shop_input(self, event):
+        """处理箱子商店输入"""
+        if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+            # 检测点击盗贼老人（切换对话）
+            from .config import HEIGHT
+            mouse_pos = event.pos
+            # 匹配case_ui.py中的NPC位置和大小（缩放0.3倍后）
+            npc_x = 100
+            npc_y = HEIGHT - 500
+            # 假设原始图片约400x500，缩放0.3倍后约120x150
+            npc_width = 120
+            npc_height = 150
+            npc_rect = pygame.Rect(npc_x, npc_y, npc_width, npc_height)
 
+            if npc_rect.collidepoint(mouse_pos):
+                # 切换到下一条对话
+                if not hasattr(self, 'thief_dialogue_index'):
+                    self.thief_dialogue_index = 0
+                self.thief_dialogue_index = (self.thief_dialogue_index + 1) % 3
+                return
+
+        if event.type == pygame.KEYDOWN:
+            if event.key == pygame.K_UP:
+                self.case_shop_selection = max(0, self.case_shop_selection - 2)
+            elif event.key == pygame.K_DOWN:
+                self.case_shop_selection = min(len(self.all_cases) - 1, self.case_shop_selection + 2)
+            elif event.key == pygame.K_LEFT:
+                if self.case_shop_selection % 2 == 1:
+                    self.case_shop_selection -= 1
+            elif event.key == pygame.K_RIGHT:
+                if self.case_shop_selection % 2 == 0 and self.case_shop_selection < len(self.all_cases) - 1:
+                    self.case_shop_selection += 1
+            elif event.key in (pygame.K_RETURN, pygame.K_KP_ENTER):
+                # 购买箱子
+                if self.case_shop_selection < len(self.all_cases):
+                    case = self.all_cases[self.case_shop_selection]
+                    if self.coins >= case['coin_price']:
+                        if self.blockchain_manager.purchase_case(
+                            self.blockchain_manager.account,
+                            case['id'],
+                            1
+                        ):
+                            print(f"✅ 购买 {case['name']} 成功！")
+                            # 刷新数据
+                            self.load_player_data()
+                            self.load_case_data()
+                    else:
+                        print(f"⚠️ 金币不足！需要 {case['coin_price']} 金币")
+            elif event.key == pygame.K_b:
+                # 查看背包
+                self.game_state = "case_inventory"
+                self.case_inventory_selection = 0
+            elif event.key == pygame.K_ESCAPE:
+                self.game_state = "playing"
+
+    def handle_case_inventory_input(self, event):
+        """处理箱子库存输入"""
+        # 获取有库存的箱子
+        owned_cases = []
+        for case in self.all_cases:
+            count = self.case_inventory.get(case['id'], 0)
+            if count > 0:
+                owned_cases.append((case, count))
+
+        if not owned_cases:
+            if event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE:
+                self.game_state = "case_shop"
+            return
+
+        if event.type == pygame.KEYDOWN:
+            if event.key == pygame.K_UP:
+                self.case_inventory_selection = max(0, self.case_inventory_selection - 1)
+            elif event.key == pygame.K_DOWN:
+                self.case_inventory_selection = min(len(owned_cases) - 1, self.case_inventory_selection + 1)
+            elif event.key in (pygame.K_RETURN, pygame.K_KP_ENTER):
+                # 开箱
+                if self.case_inventory_selection < len(owned_cases):
+                    case, count = owned_cases[self.case_inventory_selection]
+                    self.open_case(case)
+            elif event.key == pygame.K_ESCAPE:
+                self.game_state = "case_shop"
+
+    def open_case(self, case):
+        """开启箱子"""
+        print(f"🎁 正在开启 {case['name']}...")
+
+        if self.blockchain_manager.open_case_from_inventory(
+            self.blockchain_manager.account,
+            case['id']
+        ):
+            # 刷新数据
+            self.load_player_data()
+            self.load_case_data()
+
+            # 获取最新的武器（应该是刚开出来的）
+            if self.weapons:
+                self.opened_weapon = self.weapons[-1]
+                self.show_case_open_result = True
+                print(f"🎉 恭喜获得：{self.opened_weapon['name']}！")
+        else:
+            print("❌ 开箱失败")
+
+    def close_case_result(self):
+        """关闭开箱结果"""
+        self.show_case_open_result = False
+        self.opened_weapon = None

@@ -13,7 +13,8 @@ class WeaponManager:
     """武器管理器"""
     
     def __init__(self):
-        self.weapon_sprite_cache = {}  # (type, rarity) -> surface
+        self.weapon_sprite_cache = {}  # (type, level) -> surface (基础贴图缓存)
+        self.weapon_with_wear_cache = {}  # (type, level, wear_int) -> surface (带磨损贴图缓存)
         self.weapon_anchor_cache = {}  # (type, rarity) -> (handle_x, handle_y)
     
     @staticmethod
@@ -99,31 +100,114 @@ class WeaponManager:
         return weapon_name
 
     def get_weapon_sprite(self, weapon) -> pygame.Surface:
-        """获取武器贴图"""
+        """获取武器贴图，包含磨损度噪点效果（使用静态缓存）"""
         if not weapon:
             return None
+
         wtype = self.detect_weapon_type(weapon.get('original_name') or weapon.get('name'))
         level = weapon['rarity'].value + 1  # 1~4 级对应 COMMON~LEGENDARY
-        key = (wtype, level)
-        if key in self.weapon_sprite_cache:
-            return self.weapon_sprite_cache[key]
-        filename = f"{level}级.png"
-        sprite_path = os.path.join(BASE_DIR, "武器图片", wtype, filename)
-        if not os.path.exists(sprite_path):
-            return None
+        wear = weapon.get('wear', 0)
+
+        # 将wear转换为整数用于缓存key（保留4位小数精度）
+        wear_int = int(wear * 10000) if wear else 0
+
+        # 检查带磨损度的缓存
+        cache_key = (wtype, level, wear_int)
+        if cache_key in self.weapon_with_wear_cache:
+            return self.weapon_with_wear_cache[cache_key].copy()
+
+        # 获取基础贴图
+        base_key = (wtype, level)
+        if base_key not in self.weapon_sprite_cache:
+            filename = f"{level}级.png"
+            sprite_path = os.path.join(BASE_DIR, "武器图片", wtype, filename)
+            if not os.path.exists(sprite_path):
+                return None
+            try:
+                surf = pygame.image.load(sprite_path).convert_alpha()
+                # 统一尺寸，匹配 weapon_length (60像素) 以对齐 hitbox
+                target_h = 60
+                scale = target_h / surf.get_height()
+                target_w = max(16, int(surf.get_width() * scale))
+                surf = pygame.transform.smoothscale(surf, (target_w, target_h))
+                self.weapon_sprite_cache[base_key] = surf
+            except Exception as err:
+                print(f"⚠️ 武器图片加载失败 {sprite_path}: {err}")
+                return None
+
+        base_surf = self.weapon_sprite_cache[base_key]
+
+        # 应用磨损度效果并缓存
+        if wear and wear > 0.05:  # S级以上才添加噪点
+            result_surf = self._apply_wear_effect(base_surf.copy(), wear)
+        else:
+            result_surf = base_surf.copy()
+
+        # 缓存结果
+        self.weapon_with_wear_cache[cache_key] = result_surf
+        return result_surf.copy()
+
+    def _apply_wear_effect(self, surface: pygame.Surface, wear: float) -> pygame.Surface:
+        """
+        对武器贴图应用磨损度噪点效果（使用固定种子保证一致性）
+        wear: 0.0-1.0，值越大噪点越多
+        """
+        # 使用wear值作为随机种子，确保相同wear产生相同的噪点
+        random.seed(int(wear * 100000))
+
+        # 创建可修改的surface
+        width, height = surface.get_size()
+
         try:
-            surf = pygame.image.load(sprite_path).convert_alpha()
-            # 统一尺寸，匹配 weapon_length (60像素) 以对齐 hitbox
-            target_h = 60
-            scale = target_h / surf.get_height()
-            target_w = max(16, int(surf.get_width() * scale))
-            surf = pygame.transform.smoothscale(surf, (target_w, target_h))
-            self.weapon_sprite_cache[key] = surf
-            return surf
+            # 根据磨损度计算噪点密度
+            # wear: 0.05-1.0 映射到 noise_density: 0.01-0.15
+            noise_density = min(0.15, max(0.01, (wear - 0.05) * 0.15))
+
+            # 计算需要添加的噪点数量
+            num_noise_pixels = int(width * height * noise_density)
+
+            # 锁定surface以便修改像素
+            pygame.surfarray.use_arraytype('numpy')  # 尝试使用numpy
+            pixels = pygame.surfarray.pixels3d(surface)
+            alpha = pygame.surfarray.pixels_alpha(surface)
+
+            # 添加随机噪点
+            darkening_factor = 0.5 + (wear * 0.3)  # 0.5-0.8之间
+
+            for _ in range(num_noise_pixels):
+                x = random.randint(0, width - 1)
+                y = random.randint(0, height - 1)
+
+                # 只在非透明区域添加噪点
+                if alpha[x, y] > 50:
+                    pixels[x, y] = (pixels[x, y] * darkening_factor).astype('uint8')
+
+            # 稍微降低整体的alpha，让武器看起来有些褪色
+            if wear > 0.5:  # D级以上才褪色
+                fade_factor = max(0.85, 1.0 - (wear - 0.5) * 0.3)  # 最多降到85%
+                alpha[:] = (alpha * fade_factor).astype('uint8')
+
+            del pixels
+            del alpha
+
         except Exception as err:
-            print(f"⚠️ 武器图片加载失败 {sprite_path}: {err}")
-            return None
-    
+            # 如果numpy不可用，使用更简单的方法
+            # print(f"⚠️ 应用磨损效果失败（使用简单模式）: {err}")
+
+            # 简单模式：只降低整体亮度
+            if wear > 0.3:
+                # 创建半透明黑色遮罩
+                overlay = pygame.Surface((width, height), pygame.SRCALPHA)
+                darkness = int((wear - 0.3) * 100)  # 0-70之间
+                overlay.fill((0, 0, 0, darkness))
+                surface.blit(overlay, (0, 0))
+
+        finally:
+            # 恢复随机种子
+            random.seed()
+
+        return surface
+
     def get_weapon_anchor(self, weapon, sprite) -> tuple:
         """获取武器手柄锚点位置"""
         if not weapon or not sprite:

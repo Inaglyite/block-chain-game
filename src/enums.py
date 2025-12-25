@@ -21,3 +21,11 @@ class WeaponType(Enum):
     SICKLE = "镰刀"
 
 
+class Condition(Enum):
+    """武器品相等级"""
+    S = 0  # S级 / 极佳（像全新）
+    A = 1  # A级 / 优良
+    B = 2  # B级 / 良好
+    C = 3  # C级 / 普通
+    D = 4  # D级 / 磨损
+    E = 5  # E级 / 严重磨损

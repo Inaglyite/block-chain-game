@@ -158,3 +158,56 @@ def render_text_with_emoji(font, emoji_font, text, color, antialias=True):
         current_x += surf.get_width()
 
     return final_surface
+
+def get_condition_name(condition_or_wear):
+    """获取品相名称"""
+    from .enums import Condition
+
+    if condition_or_wear is None:
+        return "未知"
+
+    # 如果是Condition枚举
+    if isinstance(condition_or_wear, Condition):
+        names = {
+            Condition.S: "S级（极佳）",
+            Condition.A: "A级（优良）",
+            Condition.B: "B级（良好）",
+            Condition.C: "C级（普通）",
+            Condition.D: "D级（磨损）",
+            Condition.E: "E级（严重磨损）",
+        }
+        return names.get(condition_or_wear, "未知")
+
+    # 如果是wear浮点数，计算品相
+    if isinstance(condition_or_wear, (float, int)):
+        wear = float(condition_or_wear)
+        if wear < 0.05:
+            grade = Condition.S
+        elif wear < 0.15:
+            grade = Condition.A
+        elif wear < 0.30:
+            grade = Condition.B
+        elif wear < 0.50:
+            grade = Condition.C
+        elif wear < 0.75:
+            grade = Condition.D
+        else:
+            grade = Condition.E
+
+        names = {
+            Condition.S: "S级（极佳）",
+            Condition.A: "A级（优良）",
+            Condition.B: "B级（良好）",
+            Condition.C: "C级（普通）",
+            Condition.D: "D级（磨损）",
+            Condition.E: "E级（严重磨损）",
+        }
+        return f"{names[grade]} ({wear:.4f})"
+
+    return "未知"
+
+def format_wear_value(wear):
+    """格式化磨损度数值显示"""
+    if wear is None:
+        return "N/A"
+    return f"{float(wear):.4f}"
