@@ -612,22 +612,29 @@ class FriendUIRenderer:
 
     @staticmethod
     def _draw_trade_requests(surface, game, start_y, header_font, default_font, small_font):
-        """绘制交易请求 - 现代化设计"""
+        """绘制交易请求 - 显示收到的交易请求（现代化设计）"""
         trades = game.user_manager.get_trade_requests()
         pending_trades = [t for t in trades if t['status'] == 'pending']
 
         if not pending_trades:
-            empty_box = pygame.Rect(WIDTH // 2 - 200, start_y + 80, 400, 100)
+            empty_box = pygame.Rect(WIDTH // 2 - 200, start_y + 20, 400, 100)
             pygame.draw.rect(surface, THEME["white"], empty_box, border_radius=12)
             pygame.draw.rect(surface, THEME["input_border"], empty_box, 2, border_radius=12)
 
-            no_trade = default_font.render("暂无交易请求", True, THEME["text_light"])
-            surface.blit(no_trade, (WIDTH // 2 - no_trade.get_width() // 2, start_y + 120))
+            no_trade = default_font.render("暂无收到的交易请求", True, THEME["text_light"])
+            surface.blit(no_trade, (WIDTH // 2 - no_trade.get_width() // 2, start_y + 60))
+
+            # 显示已发送的交易
+            FriendUIRenderer._draw_sent_trade_offers(surface, game, start_y + 140, header_font, default_font, small_font)
             return
 
         selection = getattr(game, 'trade_request_selection', 0)
 
-        for i, trade in enumerate(pending_trades[:5]):
+        # 标题
+        subtitle = small_font.render("收到的交易请求", True, THEME["text_light"])
+        surface.blit(subtitle, (60, start_y - 25))
+
+        for i, trade in enumerate(pending_trades[:3]):  # 最多显示3个
             y = start_y + i * 95
 
             card_rect = pygame.Rect(60, y, WIDTH - 120, 85)
@@ -649,27 +656,92 @@ class FriendUIRenderer:
             # 交易信息
             from_text = default_font.render(f"来自: {trade['from_user']}", True, THEME["text"])
             weapon_text = small_font.render(f"武器 ID: {trade['weapon_id']}", True, THEME["text_light"])
-            price_text = default_font.render(f"{trade['price_eth']} ETH", True, GOLD)
+            price_text = default_font.render(f"{trade['price_eth']:.4f} ETH", True, GOLD)
 
             surface.blit(from_text, (card_rect.x + 75, card_rect.y + 15))
             surface.blit(weapon_text, (card_rect.x + 75, card_rect.y + 40))
             surface.blit(price_text, (card_rect.x + 75, card_rect.y + 60))
 
-            # 按钮
-            btn_y = card_rect.y + 27
-            accept_btn = pygame.Rect(WIDTH - 260, btn_y, 90, 32)
-            reject_btn = pygame.Rect(WIDTH - 155, btn_y, 90, 32)
+            # 提示：点击ENTER查看详情
+            if i == selection:
+                view_hint = small_font.render("按ENTER查看详情", True, THEME["success"])
+                surface.blit(view_hint, (card_rect.right - view_hint.get_width() - 15, card_rect.y + 30))
 
-            pygame.draw.rect(surface, THEME["success"], accept_btn, border_radius=6)
-            accept_text = small_font.render("接受", True, THEME["white"])
-            surface.blit(accept_text, (accept_btn.centerx - accept_text.get_width() // 2,
-                                       accept_btn.centery - accept_text.get_height() // 2))
+        # 显示已发送的交易
+        sent_start_y = start_y + min(len(pending_trades), 3) * 95 + 30
+        FriendUIRenderer._draw_sent_trade_offers(surface, game, sent_start_y, header_font, default_font, small_font)
 
-            pygame.draw.rect(surface, THEME["white"], reject_btn, border_radius=6)
-            pygame.draw.rect(surface, THEME["danger"], reject_btn, 2, border_radius=6)
-            reject_text = small_font.render("拒绝", True, THEME["danger"])
-            surface.blit(reject_text, (reject_btn.centerx - reject_text.get_width() // 2,
-                                       reject_btn.centery - reject_text.get_height() // 2))
+    @staticmethod
+    def _draw_sent_trade_offers(surface, game, start_y, header_font, default_font, small_font):
+        """绘制已发送的交易报价"""
+        # 标题
+        subtitle = small_font.render("已发送的交易报价", True, THEME["text_light"])
+        surface.blit(subtitle, (60, start_y - 25))
+
+        # 获取当前用户发送的所有交易请求
+        all_users = game.user_manager.users
+        sent_offers = []
+
+        for username, user_data in all_users.items():
+            if username == game.user_manager.current_user:
+                continue
+
+            trade_requests = user_data.get('trade_requests', [])
+            for trade in trade_requests:
+                if trade['from_user'] == game.user_manager.current_user:
+                    sent_offers.append({
+                        **trade,
+                        'to_user_display': username
+                    })
+
+        if not sent_offers:
+            empty_text = small_font.render("暂无发送的交易报价", True, THEME["text_light"])
+            surface.blit(empty_text, (WIDTH // 2 - empty_text.get_width() // 2, start_y + 30))
+            return
+
+        # 显示列表（最多显示2个）
+        for i, offer in enumerate(sent_offers[:2]):
+            y = start_y + i * 75
+
+            offer_rect = pygame.Rect(60, y, WIDTH - 120, 65)
+
+            # 根据状态设置颜色
+            status_colors = {
+                'pending': THEME["warning"],
+                'accepted': THEME["success"],
+                'rejected': THEME["danger"],
+                'completed': THEME["primary"]
+            }
+            border_color = status_colors.get(offer['status'], THEME["input_border"])
+
+            pygame.draw.rect(surface, THEME["white"], offer_rect, border_radius=8)
+            pygame.draw.rect(surface, border_color, offer_rect, 2, border_radius=8)
+
+            # 图标
+            icon_size = 35
+            icon_rect = pygame.Rect(offer_rect.x + 12, offer_rect.y + 15, icon_size, icon_size)
+            pygame.draw.circle(surface, border_color, (icon_rect.centerx, icon_rect.centery), icon_size // 2)
+            icon_text = default_font.render("📤", True, THEME["white"])
+            surface.blit(icon_text, (icon_rect.centerx - 8, icon_rect.centery - 8))
+
+            # 接收方和武器信息
+            to_text = default_font.render(f"发送给: {offer['to_user_display']}", True, THEME["text"])
+            surface.blit(to_text, (offer_rect.x + 60, offer_rect.y + 10))
+
+            weapon_price = small_font.render(f"武器 ID: {offer['weapon_id']} | {offer['price_eth']:.4f} ETH",
+                                            True, THEME["text_light"])
+            surface.blit(weapon_price, (offer_rect.x + 60, offer_rect.y + 35))
+
+            # 状态
+            status_map = {
+                'pending': '⏳ 等待中',
+                'accepted': '✅ 已接受',
+                'rejected': '❌ 已拒绝',
+                'completed': '✓ 已完成'
+            }
+            status_text = small_font.render(status_map.get(offer['status'], '未知'),
+                                           True, border_color)
+            surface.blit(status_text, (offer_rect.right - status_text.get_width() - 15, offer_rect.centery - 8))
 
     @staticmethod
     def _draw_add_friend(surface, game, start_y, header_font, default_font, small_font):

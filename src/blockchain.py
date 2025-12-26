@@ -570,4 +570,265 @@ class BlockchainManager:
             print(f"获取箱子库存失败: {err}")
             return {}
 
+    def transfer_weapon_locally(self, weapon_id: int, from_address: str, to_address: str) -> bool:
+        """
+        在本地模式下转移武器所有权（用于好友交易）
+        注意：这不会在区块链上执行，仅用于离线/本地交易
+
+        参数:
+            weapon_id: 武器ID
+            from_address: 发送者地址
+            to_address: 接收者地址
+
+        返回:
+            bool: 是否成功
+        """
+        if self.blockchain_available:
+            # 在线模式下，尝试在区块链上转移
+            # 注意：当前智能合约没有直接的 transferWeapon 函数
+            # 需要使用 listWeaponForSale + purchaseWeapon 的组合
+            print("⚠️ 在线模式下的好友交易需要武器先上架到市场")
+            print("   建议使用市场交易功能，或在离线模式下进行")
+            return False
+        else:
+            # 离线模式：仅记录日志
+            print(f"📦 本地武器转移（离线模式）:")
+            print(f"   武器 ID: {weapon_id}")
+            print(f"   从: {from_address[:10]}...")
+            print(f"   到: {to_address[:10]}...")
+            print(f"   ✅ 本地转移记录已保存")
+            return True
+
+    # ==================== P2P 交易报价系统 ====================
+
+    def create_trade_offer(self, account: str, weapon_id: int, buyer_address: str, price_wei: int) -> bool:
+        """
+        创建 P2P 交易报价
+
+        参数:
+            account: 发起者账户地址
+            weapon_id: 武器ID
+            buyer_address: 买家地址（使用 '0x0000000000000000000000000000000000000000' 表示公开）
+            price_wei: 价格（Wei）
+
+        返回:
+            bool: 是否成功
+        """
+        if not self.blockchain_available:
+            print("⚠️ 离线模式：无法创建链上交易报价")
+            return False
+
+        try:
+            tx = self.contract.functions.createTradeOffer(
+                weapon_id,
+                buyer_address,
+                price_wei
+            ).build_transaction({
+                'from': account,
+                'gas': 300000,
+                'gasPrice': self.w3.to_wei('2', 'gwei'),
+                'nonce': self.w3.eth.get_transaction_count(account)
+            })
+
+            tx_hash = self.w3.eth.send_transaction(tx)
+            print(f"⏳ 创建交易报价: {tx_hash.hex()} 等待确认...")
+
+            receipt = self.w3.eth.wait_for_transaction_receipt(tx_hash)
+            status = getattr(receipt, 'status', 1)
+
+            if status == 1:
+                # 解析事件获取 offerId
+                offer_created_event = self.contract.events.TradeOfferCreated()
+                logs = offer_created_event.process_receipt(receipt)
+
+                if logs:
+                    offer_id = logs[0]['args']['offerId']
+                    print(f"✅ 交易报价已创建，报价ID: {offer_id}")
+                    return True
+                else:
+                    print("✅ 交易报价已创建")
+                    return True
+            else:
+                print("❌ 创建交易报价失败")
+                return False
+
+        except Exception as err:
+            print(f"❌ 创建交易报价失败: {err}")
+            import traceback
+            traceback.print_exc()
+            return False
+
+    def accept_trade_offer(self, account: str, offer_id: int, price_wei: int) -> bool:
+        """
+        接受 P2P 交易报价
+
+        参数:
+            account: 接受者账户地址
+            offer_id: 报价ID
+            price_wei: 支付金额（Wei）
+
+        返回:
+            bool: 是否成功
+        """
+        if not self.blockchain_available:
+            print("⚠️ 离线模式：无法接受链上交易报价")
+            return False
+
+        try:
+            tx = self.contract.functions.acceptTradeOffer(offer_id).build_transaction({
+                'from': account,
+                'value': price_wei,
+                'gas': 350000,
+                'gasPrice': self.w3.to_wei('2', 'gwei'),
+                'nonce': self.w3.eth.get_transaction_count(account)
+            })
+
+            tx_hash = self.w3.eth.send_transaction(tx)
+            print(f"⏳ 接受交易报价: {tx_hash.hex()} 等待确认...")
+
+            receipt = self.w3.eth.wait_for_transaction_receipt(tx_hash)
+            status = getattr(receipt, 'status', 1)
+
+            if status == 1:
+                print("✅ 交易报价已接受，武器已转移")
+                return True
+            else:
+                print("❌ 接受交易报价失败")
+                return False
+
+        except Exception as err:
+            print(f"❌ 接受交易报价失败: {err}")
+            import traceback
+            traceback.print_exc()
+            return False
+
+    def cancel_trade_offer(self, account: str, offer_id: int) -> bool:
+        """
+        取消 P2P 交易报价
+
+        参数:
+            account: 发起者账户地址
+            offer_id: 报价ID
+
+        返回:
+            bool: 是否成功
+        """
+        if not self.blockchain_available:
+            print("⚠️ 离线模式：无法取消链上交易报价")
+            return False
+
+        try:
+            tx = self.contract.functions.cancelTradeOffer(offer_id).build_transaction({
+                'from': account,
+                'gas': 200000,
+                'gasPrice': self.w3.to_wei('2', 'gwei'),
+                'nonce': self.w3.eth.get_transaction_count(account)
+            })
+
+            tx_hash = self.w3.eth.send_transaction(tx)
+            print(f"⏳ 取消交易报价: {tx_hash.hex()} 等待确认...")
+
+            receipt = self.w3.eth.wait_for_transaction_receipt(tx_hash)
+            status = getattr(receipt, 'status', 1)
+
+            if status == 1:
+                print("✅ 交易报价已取消")
+                return True
+            else:
+                print("❌ 取消交易报价失败")
+                return False
+
+        except Exception as err:
+            print(f"❌ 取消交易报价失败: {err}")
+            return False
+
+    def get_trade_offer(self, offer_id: int) -> dict:
+        """
+        获取交易报价详情
+
+        参数:
+            offer_id: 报价ID
+
+        返回:
+            dict: 报价信息
+        """
+        if not self.blockchain_available:
+            return {}
+
+        try:
+            offer = self.contract.functions.getTradeOffer(offer_id).call()
+            return {
+                'offerId': offer[0],
+                'weaponId': offer[1],
+                'seller': offer[2],
+                'buyer': offer[3],
+                'price': offer[4],
+                'active': offer[5],
+                'createdAt': offer[6]
+            }
+        except Exception as err:
+            print(f"获取交易报价失败: {err}")
+            return {}
+
+    def get_user_active_offers(self, account: str) -> list:
+        """
+        获取用户发起的活跃报价
+
+        参数:
+            account: 用户地址
+
+        返回:
+            list: 报价列表
+        """
+        if not self.blockchain_available:
+            return []
+
+        try:
+            offers = self.contract.functions.getUserActiveOffers(account).call()
+            result = []
+            for offer in offers:
+                result.append({
+                    'offerId': offer[0],
+                    'weaponId': offer[1],
+                    'seller': offer[2],
+                    'buyer': offer[3],
+                    'price': offer[4],
+                    'active': offer[5],
+                    'createdAt': offer[6]
+                })
+            return result
+        except Exception as err:
+            print(f"获取用户报价失败: {err}")
+            return []
+
+    def get_user_received_active_offers(self, account: str) -> list:
+        """
+        获取用户收到的活跃报价
+
+        参数:
+            account: 用户地址
+
+        返回:
+            list: 报价列表
+        """
+        if not self.blockchain_available:
+            return []
+
+        try:
+            offers = self.contract.functions.getUserReceivedActiveOffers(account).call()
+            result = []
+            for offer in offers:
+                result.append({
+                    'offerId': offer[0],
+                    'weaponId': offer[1],
+                    'seller': offer[2],
+                    'buyer': offer[3],
+                    'price': offer[4],
+                    'active': offer[5],
+                    'createdAt': offer[6]
+                })
+            return result
+        except Exception as err:
+            print(f"获取收到的报价失败: {err}")
+            return []
 

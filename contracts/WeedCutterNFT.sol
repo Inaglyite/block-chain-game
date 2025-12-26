@@ -637,6 +637,191 @@ contract WeedCutterNFT {
         }
     }
 
+    // ==================== P2P 交易报价系统 ====================
+
+    // 交易报价结构
+    struct TradeOffer {
+        uint256 offerId;
+        uint256 weaponId;
+        address seller;       // 发起者（武器所有者）
+        address buyer;        // 接受者（指定买家，address(0) 表示公开）
+        uint256 price;        // 报价（Wei）
+        bool active;          // 是否有效
+        uint256 createdAt;    // 创建时间
+    }
+
+    mapping(uint256 => TradeOffer) public tradeOffers;
+    uint256 private nextOfferId = 1;
+
+    // 用户的活跃报价列表：seller => offerIds[]
+    mapping(address => uint256[]) public userOffers;
+
+    // 用户收到的报价列表：buyer => offerIds[]
+    mapping(address => uint256[]) public userReceivedOffers;
+
+    event TradeOfferCreated(uint256 offerId, uint256 weaponId, address indexed seller, address indexed buyer, uint256 price);
+    event TradeOfferAccepted(uint256 offerId, uint256 weaponId, address indexed seller, address indexed buyer, uint256 price);
+    event TradeOfferCancelled(uint256 offerId, address indexed seller);
+
+    /**
+     * @dev 创建交易报价（发起者）
+     * @param weaponId 武器ID
+     * @param buyer 指定买家地址（address(0) 表示公开给所有人）
+     * @param price 报价（Wei）
+     */
+    function createTradeOffer(uint256 weaponId, address buyer, uint256 price) public {
+        Weapon storage weapon = weapons[weaponId];
+        require(weapon.owner == msg.sender, "Not weapon owner");
+        require(!weapon.forSale, "Weapon already listed for sale");
+        require(price > 0, "Price must be greater than 0");
+
+        uint256 offerId = nextOfferId++;
+
+        tradeOffers[offerId] = TradeOffer({
+            offerId: offerId,
+            weaponId: weaponId,
+            seller: msg.sender,
+            buyer: buyer,
+            price: price,
+            active: true,
+            createdAt: block.timestamp
+        });
+
+        // 添加到发起者的报价列表
+        userOffers[msg.sender].push(offerId);
+
+        // 如果指定了买家，添加到买家的接收列表
+        if (buyer != address(0)) {
+            userReceivedOffers[buyer].push(offerId);
+        }
+
+        emit TradeOfferCreated(offerId, weaponId, msg.sender, buyer, price);
+    }
+
+    /**
+     * @dev 接受交易报价（接受者支付 ETH）
+     * @param offerId 报价ID
+     */
+    function acceptTradeOffer(uint256 offerId) public payable {
+        TradeOffer storage offer = tradeOffers[offerId];
+
+        require(offer.active, "Offer not active");
+        require(offer.buyer == address(0) || offer.buyer == msg.sender, "Not designated buyer");
+        require(msg.value >= offer.price, "Insufficient payment");
+
+        Weapon storage weapon = weapons[offer.weaponId];
+        require(weapon.owner == offer.seller, "Seller no longer owns weapon");
+
+        address previousOwner = offer.seller;
+        uint256 weaponId = offer.weaponId;
+        uint256 paymentAmount = offer.price;
+
+        // 转移武器所有权
+        weapon.owner = msg.sender;
+        weapon.forSale = false;
+        weapon.price = 0;
+
+        // 更新用户武器列表
+        _removeWeaponFromUser(previousOwner, weaponId);
+        userWeapons[msg.sender].push(weaponId);
+
+        // 转账给卖家
+        payable(previousOwner).transfer(paymentAmount);
+
+        // 如果支付超过报价，退还差额
+        if (msg.value > paymentAmount) {
+            payable(msg.sender).transfer(msg.value - paymentAmount);
+        }
+
+        // 标记报价为已完成（不活跃）
+        offer.active = false;
+
+        emit TradeOfferAccepted(offerId, weaponId, previousOwner, msg.sender, paymentAmount);
+    }
+
+    /**
+     * @dev 取消交易报价（发起者）
+     * @param offerId 报价ID
+     */
+    function cancelTradeOffer(uint256 offerId) public {
+        TradeOffer storage offer = tradeOffers[offerId];
+
+        require(offer.seller == msg.sender, "Not offer creator");
+        require(offer.active, "Offer not active");
+
+        offer.active = false;
+
+        emit TradeOfferCancelled(offerId, msg.sender);
+    }
+
+    /**
+     * @dev 获取用户发起的所有活跃报价
+     * @param user 用户地址
+     */
+    function getUserActiveOffers(address user) public view returns (TradeOffer[] memory) {
+        uint256[] storage offerIds = userOffers[user];
+        uint256 activeCount = 0;
+
+        // 计算活跃报价数量
+        for (uint256 i = 0; i < offerIds.length; i++) {
+            if (tradeOffers[offerIds[i]].active) {
+                activeCount++;
+            }
+        }
+
+        // 构建活跃报价数组
+        TradeOffer[] memory activeOffers = new TradeOffer[](activeCount);
+        uint256 index = 0;
+
+        for (uint256 i = 0; i < offerIds.length; i++) {
+            uint256 offerId = offerIds[i];
+            if (tradeOffers[offerId].active) {
+                activeOffers[index] = tradeOffers[offerId];
+                index++;
+            }
+        }
+
+        return activeOffers;
+    }
+
+    /**
+     * @dev 获取用户收到的所有活跃报价
+     * @param user 用户地址
+     */
+    function getUserReceivedActiveOffers(address user) public view returns (TradeOffer[] memory) {
+        uint256[] storage offerIds = userReceivedOffers[user];
+        uint256 activeCount = 0;
+
+        // 计算活跃报价数量
+        for (uint256 i = 0; i < offerIds.length; i++) {
+            if (tradeOffers[offerIds[i]].active) {
+                activeCount++;
+            }
+        }
+
+        // 构建活跃报价数组
+        TradeOffer[] memory activeOffers = new TradeOffer[](activeCount);
+        uint256 index = 0;
+
+        for (uint256 i = 0; i < offerIds.length; i++) {
+            uint256 offerId = offerIds[i];
+            if (tradeOffers[offerId].active) {
+                activeOffers[index] = tradeOffers[offerId];
+                index++;
+            }
+        }
+
+        return activeOffers;
+    }
+
+    /**
+     * @dev 获取报价详情
+     * @param offerId 报价ID
+     */
+    function getTradeOffer(uint256 offerId) public view returns (TradeOffer memory) {
+        return tradeOffers[offerId];
+    }
+
     // 仅限所有者可以提取合约余额
     function withdraw() public onlyOwner {
         payable(owner).transfer(address(this).balance);
@@ -645,3 +830,4 @@ contract WeedCutterNFT {
     // 接收以太币
     receive() external payable {}
 }
+

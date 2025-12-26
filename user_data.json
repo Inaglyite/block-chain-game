@@ -1,42 +1,117 @@
 {
   "Inaglyite": {
     "username": "Inaglyite",
-    "email": "huangjin23333@163.com",
-    "password_hash": "4cae2e6165801e360f339decc08b6ea1e860e49b226243ff0d97a47c0d56b677",
-    "salt": "5acd138f7af9582954803b432fece1e6",
-    "wallet_address": "0xa41cbda5f250c5caef2d3772ca8bccb28c32ec63",
-    "created_at": "2025-12-26T01:54:24.490362",
+    "email": "123@123.com",
+    "password_hash": "72cb67c0bc63f9f862d3d99a4aee4cd0c8000978f3b315cc6f2ba0303678388f",
+    "salt": "ebe2180d486903641b3be3873d995222",
+    "wallet_address": "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
+    "created_at": "2025-12-26T11:45:11.256191",
     "friends": [
-      "Huangjin"
+      "huangjin"
     ],
     "friend_requests": [],
     "trade_requests": [],
-    "public_key": "-----BEGIN PUBLIC KEY-----\nMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEApPa2Es0HgyRBfQob2bM+\nwyPAkPtJpyiYtn5jAHxzqyQQNp3k/JDQQ2G5RYoR3v+ETV7OoeeKBWzqPQLSgH9H\nL0NJD35sGnju2CbR0HyCCWG+xbT8uKODNq0dsbXw1ZCKRucu85dWBd1tXMz6p7OR\nYQgmXlI74fv0b+rAtQ00qQQlkcAwt9d5EWMH0N6eqPhmBF4QQacvTezSmXX7RRLZ\nRuuMnTKj9Ed72+0tlQnRoR7E/ITP0McZgScDU8Edi6wjynyOOU5KBTDxS/29aTek\nfBSmNed4mrjGGn/wdAsr2TaokAAlPj1a7WqRKxS0EMvjKgCRr+RPyUqpbYlhSqx7\nMQIDAQAB\n-----END PUBLIC KEY-----\n",
-    "private_key": "-----BEGIN PRIVATE KEY-----\nMIIEvAIBADANBgkqhkiG9w0BAQEFAASCBKYwggSiAgEAAoIBAQCk9rYSzQeDJEF9\nChvZsz7DI8CQ+0mnKJi2fmMAfHOrJBA2neT8kNBDYblFihHe/4RNXs6h54oFbOo9\nAtKAf0cvQ0kPfmwaeO7YJtHQfIIJYb7FtPy4o4M2rR2xtfDVkIpG5y7zl1YF3W1c\nzPqns5FhCCZeUjvh+/Rv6sC1DTSpBCWRwDC313kRYwfQ3p6o+GYEXhBBpy9N7NKZ\ndftFEtlG64ydMqP0R3vb7S2VCdGhHsT8hM/QxxmBJwNTwR2LrCPKfI45TkoFMPFL\n/b1pN6R8FKY153iauMYaf/B0CyvZNqiQACU+PVrtapErFLQQy+MqAJGv5E/JSqlt\niWFKrHsxAgMBAAECggEACxhs9qbDspZlsTtU1DeyKP3mndnJAm1AmEW38vhr7z7l\nuEa2eCZlW6LfC0ZWHWGiTHHsBAfGyMaimqft8Kae6xbjex9NthocNn2l7xfwxyDD\n7BhYRzL4SF0seh96q2Klak9yYP/00UArcup2kYEKbjRWIFH3pSOFNWHcxFC3EgcR\nuZN4UFig8gcS1bkTFgnyBuLp2a+ovFcoExlCJGes1SZgsWbt5zf7ufwRliCLsoGN\n7g5zMbjDSxtfXXkHqhS5FgY5JReuLHOpj4IIskk7xqL9F7dcI+HOlGjV2zq9Vwu7\nkjEiA5PBsYvBh0EJ5Q4sP5Jq9YXOER7+ac9SO8suAQKBgQDRfRK+3oSzhwgQ7P5c\nvhLDjjNcToIRlGEqmIkV2mR3N0SCwv2s42IeM7g+d17/8bpX+02bAZCuuwkBjIOz\nG21aoy36utWgCo8j8Rx6TI4IsZHTHFLsElhzPWN9KN+V5kgfV8HbHqu7eX9YheLB\nVVsISPsQ7vuAeBEzedWKHrXmGQKBgQDJlu5hXa6weo6346YiYCatGWwrjU7KU81f\n263elVHalFguGs9BgtkdbTaVyIUUaWVUZyzpiFywPZlzGA8e/bJKJ8/JMjo3ce4d\nFXG+coDV3/Rv+x8+Sjze0JnDb2ANtu9QMXcxObdqLekvLaQs60quaEzn5n+ZfCOm\nsHc0143w2QKBgAe5BKfkrB+yKqn1Eqt4llh/NYWBn2nmfm6DkQotMubyMqRfa9qj\nx0o1veUPoYDt+GCl8wZz2FGYs4xLEc/Ygv+EZH2JxbZQrVY13Ubk65eGdEnEEYqC\nYqBc8v36M8Pi6WW+Zncdelc+82LgDKvz6Zc0mYzWQo9J3dh39VdSKoKBAoGAN2Xs\n2IEAMqtbcRl0XFoEBunHmihZEKz68W7TVym9ts2xdeoULrKgq7+JkpvqRnO4TvuT\nkhHRNvWWp9Riw2eAiXRrW6Ub7oS2pPNxsJ6S3TOQXv2p1lpcY/b7aoO+58Xv+h+9\n25860kkPndFzHo0Clu8+wzPKuQkuWu5/s9vQu/ECgYAhy+YipIvAxLT2nY12iXA2\n7RLFgLOdc9Cvc04fAYj50+g8Z6y21zQRw8sGAvtxUUzLLj2taQ3BkjaPbF+SsXaJ\nDdmpIm9U5gvYYWzeEkdWFYcH2edGppk99yr/ABspzT0cl2/nNaIyRyDL6+DS+eri\nsiWMtLH1/0c938fXqXsczQ==\n-----END PRIVATE KEY-----\n",
+    "public_key": "-----BEGIN PUBLIC KEY-----\nMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAySJFfPLhysOcNxWVECdv\nwXMG9UKwdCZHrvxVhanbaZ5+JvS/frBj7A0gXdB4gd4BrPEmCs2Q7/A7JpPlVbbt\ndA/IeH+xiWi5RmixuiNj7nVvgRaCrBBcgvoqXCAVAwhUpWmy2ImBpcyYDtP4CKd6\nsPYTeV9SxxecLha9dj2xFbttIg3w2btNjcfqXiI/diD/gN6NsDQ/68e2/hKfOI/5\nW1JllIAKmyb2/9ghINTL5ENWMpC1wIwXkG+srQu6hOeojCSYPxsDOL0r4NFGgFWm\nd82dSTWUUkyzvYdP0z6sja6FTQccxHoH//Z3moDU2177fHiLfko+fJnF+MtYCT8f\n0QIDAQAB\n-----END PUBLIC KEY-----\n",
+    "private_key": "-----BEGIN PRIVATE KEY-----\nMIIEvwIBADANBgkqhkiG9w0BAQEFAASCBKkwggSlAgEAAoIBAQDJIkV88uHKw5w3\nFZUQJ2/Bcwb1QrB0Jkeu/FWFqdtpnn4m9L9+sGPsDSBd0HiB3gGs8SYKzZDv8Dsm\nk+VVtu10D8h4f7GJaLlGaLG6I2PudW+BFoKsEFyC+ipcIBUDCFSlabLYiYGlzJgO\n0/gIp3qw9hN5X1LHF5wuFr12PbEVu20iDfDZu02Nx+peIj92IP+A3o2wND/rx7b+\nEp84j/lbUmWUgAqbJvb/2CEg1MvkQ1YykLXAjBeQb6ytC7qE56iMJJg/GwM4vSvg\n0UaAVaZ3zZ1JNZRSTLO9h0/TPqyNroVNBxzEegf/9neagNTbXvt8eIt+Sj58mcX4\ny1gJPx/RAgMBAAECggEAAOZsypzIyZumxyxURE09cziaaqdsLU11+zwP2eqQ0qkt\n6n1JDGLOjWIFp8XSofNK0cUrEo67hSvvnq/cv9/gsij76/hpv/s+bHHPyKh3B5e7\nO5WoD8MQIBDJG3VLAsd2nzm9cHCizuT/Eceh6z21xiL2EMcgkmvNoLIH7ZjR7+nz\nx5NCP96WNYGLEWi+0z7PLPvPoTKJXBoojjA4VX5aSEhv2t78r+3tWRolvkCahLTb\nANLexyg5DlU3hoLoLRDlVv6pQNtNSWMOb96rg2TC6DKI3HgGfBnVdonL8fnKDgig\nbzY6GpBXiwASlLfa2z3GmJC+6It3/MjN6McL23PGAQKBgQDjRfDBWsW8FWITWbcW\n8OuKkBo5QFy4KD4Ga86awF2dgW5PKymjxEAyG5XI9QygNiYNWeRpIcnnOZpEVFjm\nB+dyuWeDTIcjmEPdN5j5ofxL+hH4CtzvWWfjsytAQV8j8JMb0CwCldXWM5I3NYu6\no34hPPJj6kZZFrbCAWgdcKOZ4QKBgQDijoUV0kYtghdHiMI9mhpHm3yX48nThRyh\nbgzx4/U0REB9w8FG/YUD1lwKwpw6f2a7+JS0l6Zx8Ve2pKKEtO0m1JuyPEluDSiI\nlYyiWq4iKizxTghBmrhNiJMA7gFslkcFX5k8p/SHqg/S+DdwDK4+VIx5f7wbC6oM\nL+nYRmGj8QKBgQCRhZf5hlCz9JEeyMQl6U84IrrXy7FSrVnBrMfWaLPIhTaHdKCt\n3pwoOWd4DAfwkZtd0yAgfOUVq9luRP/DEm6NE9AGzzp8fSN/AvltZd3xHAbjZrk+\nfGW7814PP4xWq9TV6z4yzZPlGpJVzXBRqhu51pdxiHFQ2+1bXaE3sIbgoQKBgQC7\ncChhZmfTTNcPwvDZYH6vkc+iJr6bNnz6ff9NvUjoJjOpGWT149fB1f6ulFYG+9K2\nX7JAO1tk18S3AjzHSJ0QTERIUSJ7X32SixAgXp/E+lnWhrXD+UrUMtNUqJUbDrXR\nl0dDbL2d5DBVXjEXjhY20WKrPugVBDB7BsUUvx4XMQKBgQCtTQRRh/FPgO04uEjy\nC4fQ8QQCYa7PhlJ79aWy2NYSylrHwQq3m8aPL4Ey0Dlps51sXlFzG6j98sw/FCm7\nAosFndHEAripDNCi/NOE5ayvL8pWW2ILI9sFu5PvwHCF3tsyAhwfB8krh+yuAds7\ncVkys0EDWtH5YWPojzFuaxmSTg==\n-----END PRIVATE KEY-----\n",
     "profile": {
       "level": 1,
       "total_score": 0,
       "games_played": 0
-    }
+    },
+    "local_weapons": {},
+    "trade_history": [
+      {
+        "trade_id": "6ec3e6456891be918a2f43ac29f00ec4",
+        "from_user": "Inaglyite",
+        "to_user": "huangjin",
+        "weapon_id": 2,
+        "price_eth": 0.0001,
+        "completed_at": "2025-12-26T11:46:35.167933",
+        "type": "sent"
+      },
+      {
+        "trade_id": "f734517903cac88296841cdc5a511621",
+        "from_user": "Inaglyite",
+        "to_user": "huangjin",
+        "weapon_id": 2,
+        "price_eth": 0.001,
+        "completed_at": "2025-12-26T11:51:08.992818",
+        "type": "sent"
+      }
+    ]
   },
-  "Huangjin": {
-    "username": "Huangjin",
-    "email": "123@163.com",
-    "password_hash": "a980a42718042473345aad58068d6ed0838282a15e24b15063bfbe6cda8f415a",
-    "salt": "0ad9ea19fc3f8d0061f6227c3518a7e5",
-    "wallet_address": "0xe29bb5dfce4ebc82ddbaaf19a938167d8acd326c",
-    "created_at": "2025-12-26T02:04:45.779121",
+  "huangjin": {
+    "username": "huangjin",
+    "email": "123@456.com",
+    "password_hash": "c5140bf06ff241457f94182d996e24008fa2dd392c0601f808c3c4469a9cb667",
+    "salt": "18def1a3b476e8e284e67a5933d8b735",
+    "wallet_address": "0x70997970C51812dc3A010C7d01b50e0d17dc79C8",
+    "created_at": "2025-12-26T11:45:41.604965",
     "friends": [
       "Inaglyite"
     ],
     "friend_requests": [],
-    "trade_requests": [],
-    "public_key": "-----BEGIN PUBLIC KEY-----\nMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAwWU9zZ3I6xRXl0bULE+k\nOv2BdRuZMaDUjWBNgvBvtcFzvHef9OOU9JSteEMSFNqJC8+qsoqvTIeczI08w4bM\nzu35cwxXqjClbqybvQhozHwWpijE9mnQy6jywwoWC65j6nO814t2BITqWsEH5/X5\nwMZ7GSQGphy0fkt5yk5FCXxDODPx+MTRbCBaMeY6cP/8aVGvtUzqPlqfGU+QTJfa\nrPJ7NZ/jX4mQT8rJS8IHM4Mt4q2eiaxrpJ7bBrSkOnICD+ZriYq+fwTBf4aQ/HV0\n1V1c0kzrOrlftPCnX9KJf4nQu+7dRMwWeS50giprPb/y9jajJSvXKyEyfRbenqX2\n4wIDAQAB\n-----END PUBLIC KEY-----\n",
-    "private_key": "-----BEGIN PRIVATE KEY-----\nMIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQDBZT3NncjrFFeX\nRtQsT6Q6/YF1G5kxoNSNYE2C8G+1wXO8d5/045T0lK14QxIU2okLz6qyiq9Mh5zM\njTzDhszO7flzDFeqMKVurJu9CGjMfBamKMT2adDLqPLDChYLrmPqc7zXi3YEhOpa\nwQfn9fnAxnsZJAamHLR+S3nKTkUJfEM4M/H4xNFsIFox5jpw//xpUa+1TOo+Wp8Z\nT5BMl9qs8ns1n+NfiZBPyslLwgczgy3irZ6JrGukntsGtKQ6cgIP5muJir5/BMF/\nhpD8dXTVXVzSTOs6uV+08Kdf0ol/idC77t1EzBZ5LnSCKms9v/L2NqMlK9crITJ9\nFt6epfbjAgMBAAECggEAF5vk4hOHgg8vLDQE1c35Jgxpf+LZHkJcgE/H1prEgGM3\n3kOaPtqDhiIaVSqW6/3Lqin1VCty//w0K5J4XwQ3P3G0uJNCpm+e2nZu4rJCnOfv\nGeSzOsOrLhmXXTD/hPiKkQYFASkwxJd3RpH3BZ21GhAA2g5YU3IApMRQ/13ztpcC\nkB8u7NT2SU7ycmrQxwiBmOPszfV619IKRS6QLOeHVyfpgJ1YEyTTqBqkCNy1jow4\noICV8aiVz6rMoy3cqDMToPxz5iJCK71I+WCJo3qcOC759ceSHXz52LkX9UeuOhdO\nZLcfY6i1RemGgbygR6mbvjl0gFUs60jEVAtg96iB6QKBgQD9uqNX2Td+KQBI//FC\nBYg7PBMmDPXC0zUFVVkz0FBYdxbESRou3Is1p1/86dJFfTFXJfVSavbc8eA7DCYF\nEbyBEkdB1D1ave+ygsxZNjfnsE/t9WdWE99UM1tmnz+TTbCR7ZwCg2sqNqCb6eK/\nHYebKL8jl9TueGYqghmBAWnhSwKBgQDDIFzgMslVbe5duQMXXeAk1nsivV66U+dx\nDpIuGvueFzpkPX+GAMPN3m+wi1Fy/SeEEC4NPG819a5P66FMO/bdgst3w7p2Coj6\n/9CZl3u/xa0ZNkhAd5iEsTbF5mQqFjefuioV8VMR5tqxHe5t7bLl+Z4g7MB6c0nh\n9POS6/NZyQKBgCWep5td3Il7IMyyDh5g3ZsSxDAPGd1CHYll5yz0hQUo2xpNUHGE\nR6uz3lqMfJ3K+ybVvPL0YxfNURbQLU7xG0bz49bR1ir/IGwSUqQjktRqYt+AVEsB\n9Unxt2qW0AFSMozgcxI4VApVQSj8257EjRenSffICk01UsiYs5laEU3TAoGAfBuV\ndzRWQnQNbKdEhBQ9gLC62TnBipnbV1mBOLoI2GDFzwQenEjYQZT9TTkPsSe7fpAb\n+mc6BQQivsqMaUSqm/GZIK/pZTMGNT+ImmhzWWKN2r9f7UEkTSG6SN1lUC+ZaYqr\nQhGgWH6REp6LDHhnlUbTgPWU50107Lc0RXq16aECgYEAuF601EdWbBNcXsH+jMp6\nbHHIz1IMiWszo33lYAZX4lZoGWyehy5bZ9bvargHnm/WklY6gkmDWNISppdeUJeV\n0UN6x0AWVESmbYKNxruHxt8BrDhPxnNkAZbEVuegWXXT27cdx9RjI+gCZsoTAxu0\nr2BzpDJFd2n1fkwhdVKELYs=\n-----END PRIVATE KEY-----\n",
+    "trade_requests": [
+      {
+        "from_user": "Inaglyite",
+        "to_user": "huangjin",
+        "weapon_id": 2,
+        "price_eth": 0.0001,
+        "created_at": "2025-12-26T11:46:20.326565",
+        "status": "completed",
+        "trade_id": "6ec3e6456891be918a2f43ac29f00ec4",
+        "encrypted_signature": "2719104675552a8e8b6587402de42c6a328931e06ce3500ceac2da08d756bafaedad3b65f541086aeaf58c26a9e90c1ca9a3a33d28eefa5814a8caee80ac5e6884011c24074b424314d88b23fe14348f22585d363e14c8c97ce8be976f2c229f445f77d81763e2c9441a6d5ebd8459af487c1151efbee68d469aac3b79c31f3d58692d402136dc235a72d3df378d73a2cc025f03585d37806bdceea217ed1453d41d2ce632303572f2f4c59f208f8e2f6ee72f615bd7bec6ee5a8d42a3f66ef825adc01fc67a9f56c0278c6dbdfeec7616653e2b758e7597e4e5e505eaf03e03dc62e7c7dc33b2e43ed643382ffde6adc80929e70221b53d46637a8aea75897e"
+      },
+      {
+        "from_user": "Inaglyite",
+        "to_user": "huangjin",
+        "weapon_id": 2,
+        "price_eth": 0.001,
+        "created_at": "2025-12-26T11:50:51.733306",
+        "status": "completed",
+        "trade_id": "f734517903cac88296841cdc5a511621",
+        "encrypted_signature": "4017e3151fa918148dd988840e6ec7f05def7e61ffd22321fe23376e8bc3f740f2ae3353fceb9c4ecde20fbc757ae8c916e38db700f4390123290e4115659231a64ff6ef92c2250013a02234dabdc7ca3d1ccb22421bb8ffd747143101c74b9daf941a555e3f9a50fbddd86ec234dfcf2fef3b367363bdc8eda244ab6bc3bac754c9e6213abec72aa181f0e569d748c91785a332c8e7e83c54858dbb123431c610dda973d10cc347fbdba3c1063b35145475e3050a26bd09950151073837533d05aae9e64aa122b2dc48097c90d9b17f6922de013a4bb8f1e4148ee6a52a7aac621e4f10b7b5ccca26e5b1bf1af0b429cda90da84b481253229b615d5de632e7"
+      }
+    ],
+    "public_key": "-----BEGIN PUBLIC KEY-----\nMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAr1ASaKAURtsnCJE2DqUg\nmDvGLUPdHw1fcQhd1Dq958gyBxIqPX7fL1w8r8Y6qbH7mqhT6YjNyURObil5kfwT\nDtHCJ2ai+Yq2hSp4gf0G3OC4U4WguTa+id4veIPn+4RFOmkJ9FXjYZxbyZFlsB1g\nsB0tFipTsZ1kZDc0clulSNMOIivNdAf7aG77H9e5EyAiQUVqXjsaOWWeebn5qL3W\nuqXtRx4wgaDypbiS/8h0JOYgTwxsls/Jj9ZhFJu5eO4pglbHmdNYwvkbpVd72pzx\nT0PQzSpNptaKk53eXLJD/qCIvqWIVAdcRYhEu2C4KLobhqg8GbHfqU/wbAI/d2U3\nVQIDAQAB\n-----END PUBLIC KEY-----\n",
+    "private_key": "-----BEGIN PRIVATE KEY-----\nMIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQCvUBJooBRG2ycI\nkTYOpSCYO8YtQ90fDV9xCF3UOr3nyDIHEio9ft8vXDyvxjqpsfuaqFPpiM3JRE5u\nKXmR/BMO0cInZqL5iraFKniB/Qbc4LhThaC5Nr6J3i94g+f7hEU6aQn0VeNhnFvJ\nkWWwHWCwHS0WKlOxnWRkNzRyW6VI0w4iK810B/tobvsf17kTICJBRWpeOxo5ZZ55\nufmovda6pe1HHjCBoPKluJL/yHQk5iBPDGyWz8mP1mEUm7l47imCVseZ01jC+Rul\nV3vanPFPQ9DNKk2m1oqTnd5cskP+oIi+pYhUB1xFiES7YLgouhuGqDwZsd+pT/Bs\nAj93ZTdVAgMBAAECggEAKw8i8l0tFckykWVfLmIq+xElaA1E1KFreX8JUrz502Hl\nvbxdsRyGE2MXicHJu0/aoT4qXBAMoVxcWizoLe3IvYlSI2zPZzTFhzgrAJxl8N7m\nDyehVhSG4KR4quRVGH8ApOvTNNbaoikuFzhVzles3ZzQ6+KKC3RByeaQRG1Tj6rU\nmX7GuLvz8TYv5vbvLEK7vEnv2L+d+dwmnh/eEqAMNrDk7zouKghDhgSqfl7U7SWr\nllZB79lYv+JSJakADaSPJ5qNEax2j2t0e4mySsDiUI44q17RcdqWisZgrO1zt+oY\nusAK4sLgjzsUu/mKUvAxSPqyiVk1A9JVQcHqLhLqWQKBgQDmv62FII//ocuSy7Cn\nLnTv3C4+K+7tAVZSpajBzuIHbut45t2mKKyz7deyDjWH/fYZ9MNV4ARo6ZUcic3M\nOYveBbPLFvtImtvDzWQJeAeCOjGJySzDm2MBlsqGUBBooREclXYykwMa7IIKpI3e\naieOlMtr1yklJSHaLc3tEns9OQKBgQDCf2Fu+eZGFX7Sq9dLSX0UbHuprsYBHjbJ\nKHsmhBVYLB0gv2s3UnZlp4GjbledyEbFw1xQ6pi/AdYHGBVwXEiNw3QB9241HHHn\nxfoOvIhyhcDhykujUCzbLUMPqokPfQlwOgvtSe64aPpEjZCyoyJVY9Rmb2EH41TC\ngP9sN91m/QKBgQDfVz2Tcl4OVsMctaypVGz40Mutf4aFvdqYqiE6XY0nFrQx1HtK\n3Wmzyg0RGXG0zBoNK3x5vRdnmFasRbF872IypqBMfVUBBGqcDUu7YoMaCEt0itSa\nC+d7XUFvWUVYkDVozj2WW/cQc0S3Gmj6kxLwjZKLMblwa41liRodUdsY+QKBgAab\n84Ck50lMY7He+wLo7WIrSYx7jujs0OnHAWBOrrb/UMITHx6TI8jSh1o5XqrS6my/\n9bweLLCY7F/zVo8p46FFmgSTFuChJdG9bYDgsTZLC0Hg8O8Mw2lzQUsf/WZUVmTE\n5DDdCUqk7pQzx036syj5qncMo9xzwiaV4ZgY0eI1AoGAdWQGSEBTJJgWG44kxOwW\nKJLxxGdCzz/U3vDxE1taUfOCKfPZYRMfQhvCq18zw0UrLjut0jI3uig72BodMFlS\nPZr86ZGTbCbglXbpuWxhI9VUH/myYMiQXvmUdsNJ7mIh1cbITNRY5mgVwWi4PpLw\nUwOSyL6oPZEtXQ4d5N77jT8=\n-----END PRIVATE KEY-----\n",
     "profile": {
       "level": 1,
       "total_score": 0,
       "games_played": 0
-    }
+    },
+    "local_weapons": {
+      "2": {
+        "id": 2,
+        "name": "Sharp Sickle",
+        "original_name": "Sharp Sickle",
+        "rarity": "RARE",
+        "damage_multiplier": 1.2,
+        "wear": 0.1939298034,
+        "condition": "B",
+        "for_sale": false,
+        "price": 0
+      }
+    },
+    "trade_history": [
+      {
+        "trade_id": "6ec3e6456891be918a2f43ac29f00ec4",
+        "from_user": "Inaglyite",
+        "to_user": "huangjin",
+        "weapon_id": 2,
+        "price_eth": 0.0001,
+        "completed_at": "2025-12-26T11:46:35.167923",
+        "type": "received"
+      },
+      {
+        "trade_id": "f734517903cac88296841cdc5a511621",
+        "from_user": "Inaglyite",
+        "to_user": "huangjin",
+        "weapon_id": 2,
+        "price_eth": 0.001,
+        "completed_at": "2025-12-26T11:51:08.992806",
+        "type": "received"
+      }
+    ]
   }
 }

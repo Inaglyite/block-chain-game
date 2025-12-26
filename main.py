@@ -85,7 +85,11 @@ def main():
                         game.handle_case_shop_input(event)
                         continue
                     elif game.game_state == "friends":
-                        game.handle_friends_input(event)
+                        # 如果正在交易，优先处理交易鼠标输入
+                        if game.trade_state:
+                            game.handle_trade_input(event)
+                        else:
+                            game.handle_friends_input(event)
                         continue
 
                 elif event.type == pygame.KEYDOWN:
@@ -120,7 +124,11 @@ def main():
                 elif game.game_state == "register":
                     game.handle_register_input(event)
                 elif game.game_state == "friends":
-                    game.handle_friends_input(event)
+                    # 如果正在交易，优先处理交易输入
+                    if game.trade_state:
+                        game.handle_trade_input(event)
+                    else:
+                        game.handle_friends_input(event)
                 elif game.game_state == "start_menu":
                     result = game.handle_start_menu_input(event)
                     if result == "quit":

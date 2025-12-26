@@ -72,7 +72,10 @@ else
   start_node
 fi
 
-echo "[2/3] 部署合约..."
+echo "[2/3] 编译合约..."
+npx --yes hardhat compile
+
+echo "[3/4] 部署合约..."
 npx --yes hardhat run scripts/deploy.ts --network localhost
 
 enable_venv() {
@@ -93,7 +96,7 @@ enable_venv() {
   fi
 }
 
-echo "[3/3] 启动游戏..."
+echo "[4/4] 启动游戏..."
 enable_venv
 python main.py
 
