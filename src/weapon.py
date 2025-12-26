@@ -84,12 +84,51 @@ class WeaponManager:
     def detect_weapon_type(self, weapon_name: str) -> str:
         """检测武器类型（从名称推断）"""
         name = (weapon_name or "").lower()
+
+        # 武器名称到类型的映射（来自智能合约配置）
+        weapon_type_map = {
+            # 刀类
+            "starter knife": "刀",
+            "sharp knife": "刀",
+            "epic knife": "刀",
+            "legendary knife": "刀",
+            "starter cutter": "刀",
+
+            # 剑类
+            "basic sword": "剑",
+            "golden blade": "剑",
+            "epic sword": "剑",
+            "legendary blade": "剑",
+
+            # 斧头类
+            "basic axe": "斧头",
+            "battle axe": "斧头",
+            "epic axe": "斧头",
+            "legendary axe": "斧头",
+
+            # 镰刀类
+            "basic sickle": "镰刀",
+            "steel sickle": "镰刀",
+            "epic scythe": "镰刀",
+            "legendary scythe": "镰刀",
+            "sharp sickle": "镰刀",
+        }
+
+        # 先尝试精确匹配
+        if name in weapon_type_map:
+            return weapon_type_map[name]
+
+        # 如果没有精确匹配，使用关键词判断
         if "axe" in name or "斧" in name:
             return "斧头"
-        if "sickle" in name or "镰" in name:
+        if "sickle" in name or "scythe" in name or "镰" in name:
             return "镰刀"
         if "sword" in name or "blade" in name or "剑" in name:
             return "剑"
+        if "knife" in name or "cutter" in name or "刀" in name:
+            return "刀"
+
+        # 默认返回刀
         return "刀"
     
     def get_weapon_display_name(self, weapon_name: str, rarity: Rarity) -> str:

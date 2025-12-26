@@ -42,6 +42,13 @@ def main():
         screen = pygame.display.set_mode((WIDTH, HEIGHT))
         pygame.display.set_caption("区块链旋转除草NFT游戏")
         
+        # 显示加载画面
+        screen.fill(WHITE)
+        font = pygame.font.Font(None, 48)
+        loading_text = font.render("Loading...", True, (0, 0, 0))
+        screen.blit(loading_text, (WIDTH // 2 - loading_text.get_width() // 2, HEIGHT // 2 - 20))
+        pygame.display.flip()
+
         # 创建游戏实例
         game = BlockchainGame(account_index=args.account_index)
         print("✅ 游戏初始化完成，开始主循环...")
@@ -60,10 +67,25 @@ def main():
                         game.close_case_result()
                     continue
 
-                # 处理鼠标点击事件（用于箱子商店NPC交互）
+                # 处理购买确认窗口（次高优先级）
+                if game.game_state == "marketplace" and game.purchase_confirm_active:
+                    if event.type == pygame.KEYDOWN:
+                        game.handle_purchase_confirm_event(event)
+                    continue
+
+                # 处理背包详情窗口（次高优先级）
+                if game.game_state == "inventory" and game.inventory_detail_active:
+                    if event.type == pygame.KEYDOWN:
+                        game.handle_inventory_detail_event(event)
+                    continue
+
+                # 处理鼠标点击事件（用于箱子商店NPC交互和好友系统）
                 if event.type == pygame.MOUSEBUTTONDOWN:
                     if game.game_state == "case_shop":
                         game.handle_case_shop_input(event)
+                        continue
+                    elif game.game_state == "friends":
+                        game.handle_friends_input(event)
                         continue
 
                 elif event.type == pygame.KEYDOWN:
@@ -91,7 +113,15 @@ def main():
                     continue
 
                 # 根据游戏状态分发输入处理
-                if game.game_state == "start_menu":
+                if game.game_state == "login":
+                    result = game.handle_login_input(event)
+                    if result == "quit":
+                        running = False
+                elif game.game_state == "register":
+                    game.handle_register_input(event)
+                elif game.game_state == "friends":
+                    game.handle_friends_input(event)
+                elif game.game_state == "start_menu":
                     result = game.handle_start_menu_input(event)
                     if result == "quit":
                         running = False

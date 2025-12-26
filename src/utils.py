@@ -5,6 +5,9 @@
 import pygame
 from .config import FONT_CANDIDATES
 
+# 字体缓存，避免重复加载和打印
+_font_cache = {}
+
 
 def load_chinese_font(size: int):
     """
@@ -16,6 +19,10 @@ def load_chinese_font(size: int):
     Returns:
         pygame.font.Font: 字体对象
     """
+    # 检查缓存
+    if size in _font_cache:
+        return _font_cache[size]
+
     available = set(pygame.font.get_fonts())  # 全部小写
     # 允许使用本地 assets 字体文件（若用户自行放置）
     custom_paths = [
@@ -26,7 +33,9 @@ def load_chinese_font(size: int):
     ]
     for p in custom_paths:
         try:
-            return pygame.font.Font(p, size)
+            font = pygame.font.Font(p, size)
+            _font_cache[size] = font
+            return font
         except Exception:
             pass
     for name in FONT_CANDIDATES:
@@ -40,11 +49,14 @@ def load_chinese_font(size: int):
                 test_surface = fnt.render("测试中文", True, (0, 0, 0))
                 if test_surface.get_width() > 0:
                     print(f"✅ 使用中文字体: {name} (size={size})")
+                    _font_cache[size] = fnt
                     return fnt
             except Exception:
                 continue
     print(f"⚠️ 未找到合适中文字体，回退默认字体 size={size}. 建议安装：fonts-wqy-microhei 或 fonts-noto-cjk")
-    return pygame.font.Font(None, size)
+    font = pygame.font.Font(None, size)
+    _font_cache[size] = font
+    return font
 
 def load_emoji_font(size):
     """加载支持Emoji的字体"""

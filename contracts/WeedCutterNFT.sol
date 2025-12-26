@@ -87,37 +87,62 @@ contract WeedCutterNFT {
         uint256 w3 = _generateRandomWear();
         _mintWeapon(msg.sender, "Epic Sword", Rarity.EPIC, 150, w3, _wearToCondition(w3));
 
-        // 初始化武器配置
-        _createWeaponConfig("Basic Weed Cutter", Rarity.COMMON, 100, 50);
-        _createWeaponConfig("Steel Sickle", Rarity.COMMON, 110, 40);
-        _createWeaponConfig("Golden Blade", Rarity.RARE, 130, 30);
-        _createWeaponConfig("Diamond Cutter", Rarity.RARE, 150, 20);
-        _createWeaponConfig("Legendary Scythe", Rarity.EPIC, 180, 10);
-        _createWeaponConfig("Mythical Sickle", Rarity.LEGENDARY, 200, 5);
+        // 初始化武器配置 - 按类型和稀有度分类
+        // 刀类武器 (Knife/Cutter)
+        _createWeaponConfig("Starter Knife", Rarity.COMMON, 100, 50);
+        _createWeaponConfig("Sharp Knife", Rarity.RARE, 130, 30);
+        _createWeaponConfig("Epic Knife", Rarity.EPIC, 160, 15);
+        _createWeaponConfig("Legendary Knife", Rarity.LEGENDARY, 200, 5);
+
+        // 剑类武器 (Sword/Blade)
+        _createWeaponConfig("Basic Sword", Rarity.COMMON, 105, 50);
+        _createWeaponConfig("Golden Blade", Rarity.RARE, 135, 30);
+        _createWeaponConfig("Epic Sword", Rarity.EPIC, 165, 15);
+        _createWeaponConfig("Legendary Blade", Rarity.LEGENDARY, 205, 5);
+
+        // 斧头类武器 (Axe)
+        _createWeaponConfig("Basic Axe", Rarity.COMMON, 110, 50);
+        _createWeaponConfig("Battle Axe", Rarity.RARE, 140, 30);
+        _createWeaponConfig("Epic Axe", Rarity.EPIC, 170, 15);
+        _createWeaponConfig("Legendary Axe", Rarity.LEGENDARY, 210, 5);
+
+        // 镰刀类武器 (Sickle/Scythe)
+        _createWeaponConfig("Basic Sickle", Rarity.COMMON, 108, 50);
+        _createWeaponConfig("Steel Sickle", Rarity.RARE, 138, 30);
+        _createWeaponConfig("Epic Scythe", Rarity.EPIC, 168, 15);
+        _createWeaponConfig("Legendary Scythe", Rarity.LEGENDARY, 208, 5);
 
         // 初始化武器箱（按武器类型分类）
-        // 刀箱子
-        uint256[] memory knifeIds = new uint256[](2);
-        knifeIds[0] = 1;  // Basic Weed Cutter
-        knifeIds[1] = 2;  // Steel Sickle
+        // 刀箱子 - 包含4个等级的刀
+        uint256[] memory knifeIds = new uint256[](4);
+        knifeIds[0] = 1;  // Starter Knife (COMMON)
+        knifeIds[1] = 2;  // Sharp Knife (RARE)
+        knifeIds[2] = 3;  // Epic Knife (EPIC)
+        knifeIds[3] = 4;  // Legendary Knife (LEGENDARY)
         createCase("Knife Case", 0 ether, 50, knifeIds);
 
-        // 剑箱子
-        uint256[] memory swordIds = new uint256[](2);
-        swordIds[0] = 3;  // Golden Blade
-        swordIds[1] = 4;  // Diamond Cutter
+        // 剑箱子 - 包含4个等级的剑
+        uint256[] memory swordIds = new uint256[](4);
+        swordIds[0] = 5;  // Basic Sword (COMMON)
+        swordIds[1] = 6;  // Golden Blade (RARE)
+        swordIds[2] = 7;  // Epic Sword (EPIC)
+        swordIds[3] = 8;  // Legendary Blade (LEGENDARY)
         createCase("Sword Case", 0 ether, 50, swordIds);
 
-        // 斧头箱子
-        uint256[] memory axeIds = new uint256[](2);
-        axeIds[0] = 5;  // Legendary Scythe
-        axeIds[1] = 6;  // Mythical Sickle
+        // 斧头箱子 - 包含4个等级的斧头
+        uint256[] memory axeIds = new uint256[](4);
+        axeIds[0] = 9;   // Basic Axe (COMMON)
+        axeIds[1] = 10;  // Battle Axe (RARE)
+        axeIds[2] = 11;  // Epic Axe (EPIC)
+        axeIds[3] = 12;  // Legendary Axe (LEGENDARY)
         createCase("Axe Case", 0 ether, 50, axeIds);
 
-        // 镰刀箱子
-        uint256[] memory sickleIds = new uint256[](2);
-        sickleIds[0] = 1;  // Basic Weed Cutter (复用)
-        sickleIds[1] = 3;  // Golden Blade (复用)
+        // 镰刀箱子 - 包含4个等级的镰刀
+        uint256[] memory sickleIds = new uint256[](4);
+        sickleIds[0] = 13;  // Basic Sickle (COMMON)
+        sickleIds[1] = 14;  // Steel Sickle (RARE)
+        sickleIds[2] = 15;  // Epic Scythe (EPIC)
+        sickleIds[3] = 16;  // Legendary Scythe (LEGENDARY)
         createCase("Sickle Case", 0 ether, 50, sickleIds);
     }
 

@@ -1,0 +1,42 @@
+{
+  "Inaglyite": {
+    "username": "Inaglyite",
+    "email": "huangjin23333@163.com",
+    "password_hash": "4cae2e6165801e360f339decc08b6ea1e860e49b226243ff0d97a47c0d56b677",
+    "salt": "5acd138f7af9582954803b432fece1e6",
+    "wallet_address": "0xa41cbda5f250c5caef2d3772ca8bccb28c32ec63",
+    "created_at": "2025-12-26T01:54:24.490362",
+    "friends": [
+      "Huangjin"
+    ],
+    "friend_requests": [],
+    "trade_requests": [],
+    "public_key": "-----BEGIN PUBLIC KEY-----\nMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEApPa2Es0HgyRBfQob2bM+\nwyPAkPtJpyiYtn5jAHxzqyQQNp3k/JDQQ2G5RYoR3v+ETV7OoeeKBWzqPQLSgH9H\nL0NJD35sGnju2CbR0HyCCWG+xbT8uKODNq0dsbXw1ZCKRucu85dWBd1tXMz6p7OR\nYQgmXlI74fv0b+rAtQ00qQQlkcAwt9d5EWMH0N6eqPhmBF4QQacvTezSmXX7RRLZ\nRuuMnTKj9Ed72+0tlQnRoR7E/ITP0McZgScDU8Edi6wjynyOOU5KBTDxS/29aTek\nfBSmNed4mrjGGn/wdAsr2TaokAAlPj1a7WqRKxS0EMvjKgCRr+RPyUqpbYlhSqx7\nMQIDAQAB\n-----END PUBLIC KEY-----\n",
+    "private_key": "-----BEGIN PRIVATE KEY-----\nMIIEvAIBADANBgkqhkiG9w0BAQEFAASCBKYwggSiAgEAAoIBAQCk9rYSzQeDJEF9\nChvZsz7DI8CQ+0mnKJi2fmMAfHOrJBA2neT8kNBDYblFihHe/4RNXs6h54oFbOo9\nAtKAf0cvQ0kPfmwaeO7YJtHQfIIJYb7FtPy4o4M2rR2xtfDVkIpG5y7zl1YF3W1c\nzPqns5FhCCZeUjvh+/Rv6sC1DTSpBCWRwDC313kRYwfQ3p6o+GYEXhBBpy9N7NKZ\ndftFEtlG64ydMqP0R3vb7S2VCdGhHsT8hM/QxxmBJwNTwR2LrCPKfI45TkoFMPFL\n/b1pN6R8FKY153iauMYaf/B0CyvZNqiQACU+PVrtapErFLQQy+MqAJGv5E/JSqlt\niWFKrHsxAgMBAAECggEACxhs9qbDspZlsTtU1DeyKP3mndnJAm1AmEW38vhr7z7l\nuEa2eCZlW6LfC0ZWHWGiTHHsBAfGyMaimqft8Kae6xbjex9NthocNn2l7xfwxyDD\n7BhYRzL4SF0seh96q2Klak9yYP/00UArcup2kYEKbjRWIFH3pSOFNWHcxFC3EgcR\nuZN4UFig8gcS1bkTFgnyBuLp2a+ovFcoExlCJGes1SZgsWbt5zf7ufwRliCLsoGN\n7g5zMbjDSxtfXXkHqhS5FgY5JReuLHOpj4IIskk7xqL9F7dcI+HOlGjV2zq9Vwu7\nkjEiA5PBsYvBh0EJ5Q4sP5Jq9YXOER7+ac9SO8suAQKBgQDRfRK+3oSzhwgQ7P5c\nvhLDjjNcToIRlGEqmIkV2mR3N0SCwv2s42IeM7g+d17/8bpX+02bAZCuuwkBjIOz\nG21aoy36utWgCo8j8Rx6TI4IsZHTHFLsElhzPWN9KN+V5kgfV8HbHqu7eX9YheLB\nVVsISPsQ7vuAeBEzedWKHrXmGQKBgQDJlu5hXa6weo6346YiYCatGWwrjU7KU81f\n263elVHalFguGs9BgtkdbTaVyIUUaWVUZyzpiFywPZlzGA8e/bJKJ8/JMjo3ce4d\nFXG+coDV3/Rv+x8+Sjze0JnDb2ANtu9QMXcxObdqLekvLaQs60quaEzn5n+ZfCOm\nsHc0143w2QKBgAe5BKfkrB+yKqn1Eqt4llh/NYWBn2nmfm6DkQotMubyMqRfa9qj\nx0o1veUPoYDt+GCl8wZz2FGYs4xLEc/Ygv+EZH2JxbZQrVY13Ubk65eGdEnEEYqC\nYqBc8v36M8Pi6WW+Zncdelc+82LgDKvz6Zc0mYzWQo9J3dh39VdSKoKBAoGAN2Xs\n2IEAMqtbcRl0XFoEBunHmihZEKz68W7TVym9ts2xdeoULrKgq7+JkpvqRnO4TvuT\nkhHRNvWWp9Riw2eAiXRrW6Ub7oS2pPNxsJ6S3TOQXv2p1lpcY/b7aoO+58Xv+h+9\n25860kkPndFzHo0Clu8+wzPKuQkuWu5/s9vQu/ECgYAhy+YipIvAxLT2nY12iXA2\n7RLFgLOdc9Cvc04fAYj50+g8Z6y21zQRw8sGAvtxUUzLLj2taQ3BkjaPbF+SsXaJ\nDdmpIm9U5gvYYWzeEkdWFYcH2edGppk99yr/ABspzT0cl2/nNaIyRyDL6+DS+eri\nsiWMtLH1/0c938fXqXsczQ==\n-----END PRIVATE KEY-----\n",
+    "profile": {
+      "level": 1,
+      "total_score": 0,
+      "games_played": 0
+    }
+  },
+  "Huangjin": {
+    "username": "Huangjin",
+    "email": "123@163.com",
+    "password_hash": "a980a42718042473345aad58068d6ed0838282a15e24b15063bfbe6cda8f415a",
+    "salt": "0ad9ea19fc3f8d0061f6227c3518a7e5",
+    "wallet_address": "0xe29bb5dfce4ebc82ddbaaf19a938167d8acd326c",
+    "created_at": "2025-12-26T02:04:45.779121",
+    "friends": [
+      "Inaglyite"
+    ],
+    "friend_requests": [],
+    "trade_requests": [],
+    "public_key": "-----BEGIN PUBLIC KEY-----\nMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAwWU9zZ3I6xRXl0bULE+k\nOv2BdRuZMaDUjWBNgvBvtcFzvHef9OOU9JSteEMSFNqJC8+qsoqvTIeczI08w4bM\nzu35cwxXqjClbqybvQhozHwWpijE9mnQy6jywwoWC65j6nO814t2BITqWsEH5/X5\nwMZ7GSQGphy0fkt5yk5FCXxDODPx+MTRbCBaMeY6cP/8aVGvtUzqPlqfGU+QTJfa\nrPJ7NZ/jX4mQT8rJS8IHM4Mt4q2eiaxrpJ7bBrSkOnICD+ZriYq+fwTBf4aQ/HV0\n1V1c0kzrOrlftPCnX9KJf4nQu+7dRMwWeS50giprPb/y9jajJSvXKyEyfRbenqX2\n4wIDAQAB\n-----END PUBLIC KEY-----\n",
+    "private_key": "-----BEGIN PRIVATE KEY-----\nMIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQDBZT3NncjrFFeX\nRtQsT6Q6/YF1G5kxoNSNYE2C8G+1wXO8d5/045T0lK14QxIU2okLz6qyiq9Mh5zM\njTzDhszO7flzDFeqMKVurJu9CGjMfBamKMT2adDLqPLDChYLrmPqc7zXi3YEhOpa\nwQfn9fnAxnsZJAamHLR+S3nKTkUJfEM4M/H4xNFsIFox5jpw//xpUa+1TOo+Wp8Z\nT5BMl9qs8ns1n+NfiZBPyslLwgczgy3irZ6JrGukntsGtKQ6cgIP5muJir5/BMF/\nhpD8dXTVXVzSTOs6uV+08Kdf0ol/idC77t1EzBZ5LnSCKms9v/L2NqMlK9crITJ9\nFt6epfbjAgMBAAECggEAF5vk4hOHgg8vLDQE1c35Jgxpf+LZHkJcgE/H1prEgGM3\n3kOaPtqDhiIaVSqW6/3Lqin1VCty//w0K5J4XwQ3P3G0uJNCpm+e2nZu4rJCnOfv\nGeSzOsOrLhmXXTD/hPiKkQYFASkwxJd3RpH3BZ21GhAA2g5YU3IApMRQ/13ztpcC\nkB8u7NT2SU7ycmrQxwiBmOPszfV619IKRS6QLOeHVyfpgJ1YEyTTqBqkCNy1jow4\noICV8aiVz6rMoy3cqDMToPxz5iJCK71I+WCJo3qcOC759ceSHXz52LkX9UeuOhdO\nZLcfY6i1RemGgbygR6mbvjl0gFUs60jEVAtg96iB6QKBgQD9uqNX2Td+KQBI//FC\nBYg7PBMmDPXC0zUFVVkz0FBYdxbESRou3Is1p1/86dJFfTFXJfVSavbc8eA7DCYF\nEbyBEkdB1D1ave+ygsxZNjfnsE/t9WdWE99UM1tmnz+TTbCR7ZwCg2sqNqCb6eK/\nHYebKL8jl9TueGYqghmBAWnhSwKBgQDDIFzgMslVbe5duQMXXeAk1nsivV66U+dx\nDpIuGvueFzpkPX+GAMPN3m+wi1Fy/SeEEC4NPG819a5P66FMO/bdgst3w7p2Coj6\n/9CZl3u/xa0ZNkhAd5iEsTbF5mQqFjefuioV8VMR5tqxHe5t7bLl+Z4g7MB6c0nh\n9POS6/NZyQKBgCWep5td3Il7IMyyDh5g3ZsSxDAPGd1CHYll5yz0hQUo2xpNUHGE\nR6uz3lqMfJ3K+ybVvPL0YxfNURbQLU7xG0bz49bR1ir/IGwSUqQjktRqYt+AVEsB\n9Unxt2qW0AFSMozgcxI4VApVQSj8257EjRenSffICk01UsiYs5laEU3TAoGAfBuV\ndzRWQnQNbKdEhBQ9gLC62TnBipnbV1mBOLoI2GDFzwQenEjYQZT9TTkPsSe7fpAb\n+mc6BQQivsqMaUSqm/GZIK/pZTMGNT+ImmhzWWKN2r9f7UEkTSG6SN1lUC+ZaYqr\nQhGgWH6REp6LDHhnlUbTgPWU50107Lc0RXq16aECgYEAuF601EdWbBNcXsH+jMp6\nbHHIz1IMiWszo33lYAZX4lZoGWyehy5bZ9bvargHnm/WklY6gkmDWNISppdeUJeV\n0UN6x0AWVESmbYKNxruHxt8BrDhPxnNkAZbEVuegWXXT27cdx9RjI+gCZsoTAxu0\nr2BzpDJFd2n1fkwhdVKELYs=\n-----END PRIVATE KEY-----\n",
+    "profile": {
+      "level": 1,
+      "total_score": 0,
+      "games_played": 0
+    }
+  }
+}

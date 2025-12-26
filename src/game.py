@@ -11,12 +11,17 @@ from .tilemap import TileMap, ProceduralTileMap
 from .weapon import WeaponManager
 from .blockchain import BlockchainManager
 from .ui import UIRenderer
+from .user_manager import UserManager
+from .auth_ui import AuthUIRenderer, FriendUIRenderer
 
 
 class BlockchainGame:
     """区块链除草游戏主类"""
     
     def __init__(self, account_index: int = 0):
+        # 用户管理器（首先初始化）
+        self.user_manager = UserManager()
+
         # 区块链管理器
         self.blockchain_manager = BlockchainManager(account_index)
         self.blockchain_manager.setup()
@@ -38,7 +43,7 @@ class BlockchainGame:
         self.current_weapon_thickness = 8
         
         # 游戏状态
-        self.game_state = "start_menu"  # 改为从开始菜单开始
+        self.game_state = "login"  # 改为从登录开始
         self.inventory_selection = 0
         self.market_selection = 0
         self.market_weapons = []
@@ -49,6 +54,29 @@ class BlockchainGame:
         self.flush_interval_ms = 3000
         self.last_refresh_block = 0
         
+        # 登录/注册状态
+        self.login_username = ""
+        self.login_password = ""
+        self.login_active_field = "username"
+        self.login_message = ""
+        self.login_success = False
+
+        self.register_username = ""
+        self.register_email = ""
+        self.register_password = ""
+        self.register_confirm_password = ""
+        self.register_active_field = "username"
+        self.register_message = ""
+        self.register_success = False
+
+        # 好友系统状态
+        self.friend_tab = 0  # 0=好友列表, 1=好友请求, 2=交易请求, 3=添加好友
+        self.friend_selection = 0
+        self.friend_request_selection = 0
+        self.trade_request_selection = 0
+        self.friend_search_text = ""
+        self.friend_search_results = []
+
         # 箱子相关
         self.case_shop_selection = 0
         self.case_inventory = {}  # case_id => amount
@@ -112,13 +140,25 @@ class BlockchainGame:
         self.last_state_toggle = 0
         self.listing_input_active = False
         self.listing_input_text = ""
+        self.listing_suggested_price = None  # 推荐价格（ETH）
         self.inventory_feedback = ""
         
-        # 加载数据
-        self.load_player_data()
-        self.generate_grass()
-        self.load_market_weapons()
-        self.load_case_data()
+        # 市场购买确认窗口
+        self.purchase_confirm_active = False
+        self.purchase_weapon_data = None
+
+        # 背包武器详情窗口
+        self.inventory_detail_active = False
+        self.inventory_detail_weapon = None
+
+        # 加载数据（只在非登录状态下加载）
+        if self.game_state != "login":
+            self.load_player_data()
+            self.generate_grass()
+            self.load_market_weapons()
+            self.load_case_data()
+        else:
+            print("ℹ️  登录状态，跳过游戏数据加载")
 
         print("游戏初始化完成!")
     
@@ -544,7 +584,13 @@ class BlockchainGame:
     
     def draw(self, surface):
         """绘制游戏"""
-        if self.game_state == "start_menu":
+        if self.game_state == "login":
+            AuthUIRenderer.draw_login_screen(surface, self)
+        elif self.game_state == "register":
+            AuthUIRenderer.draw_register_screen(surface, self)
+        elif self.game_state == "friends":
+            FriendUIRenderer.draw_friends_menu(surface, self)
+        elif self.game_state == "start_menu":
             UIRenderer.draw_start_menu(surface, self, getattr(self, 'menu_selection', 0))
         elif self.game_state == "profile":
             UIRenderer.draw_profile(surface, self)
@@ -617,6 +663,37 @@ class BlockchainGame:
             self.load_player_data()
             print(f"✅ 成功铸造 {name}！")
 
+    def start_purchase_confirm(self, weapon):
+        """开启购买确认窗口"""
+        if weapon['owner'].lower() == self.blockchain_manager.account.lower():
+            print("⚠️ 这是你自己的武器，不能购买")
+            return
+
+        self.purchase_confirm_active = True
+        self.purchase_weapon_data = weapon
+
+    def handle_purchase_confirm_event(self, event):
+        """处理购买确认窗口的输入"""
+        if event.key == pygame.K_ESCAPE:
+            # 取消购买
+            self.purchase_confirm_active = False
+            self.purchase_weapon_data = None
+            return
+
+        if event.key in (pygame.K_RETURN, pygame.K_KP_ENTER, pygame.K_y):
+            # 确认购买
+            weapon = self.purchase_weapon_data
+            self.purchase_weapon(weapon)
+            self.purchase_confirm_active = False
+            self.purchase_weapon_data = None
+            return
+
+        if event.key == pygame.K_n:
+            # 取消购买
+            self.purchase_confirm_active = False
+            self.purchase_weapon_data = None
+            return
+
     def purchase_weapon(self, weapon):
         """购买武器"""
         if weapon['owner'].lower() == self.blockchain_manager.account.lower():
@@ -660,12 +737,32 @@ class BlockchainGame:
         if not self.weapons:
             self.inventory_feedback = "⚠️ 当前没有武器可上架"
             return
+
+        weapon = self.weapons[self.inventory_selection]
+
+        # 计算推荐价格：查找市场上相同类型和稀有度的最低价
+        self.listing_suggested_price = None
+        similar_weapons = [
+            w for w in self.market_weapons
+            if w.get('rarity') == weapon.get('rarity') and
+               self.weapon_manager.detect_weapon_type(w.get('original_name', '')) ==
+               self.weapon_manager.detect_weapon_type(weapon.get('original_name', ''))
+        ]
+
+        if similar_weapons:
+            # 找到最低价格
+            min_price_wei = min(w['price'] for w in similar_weapons if w['price'] > 0)
+            if min_price_wei > 0 and self.blockchain_manager.blockchain_available and self.blockchain_manager.w3:
+                # 推荐价格为最低价 - 0.1 ETH
+                min_price_eth = float(self.blockchain_manager.w3.from_wei(min_price_wei, 'ether'))
+                suggested_eth = max(0.01, min_price_eth - 0.1)  # 最低0.01 ETH
+                self.listing_suggested_price = suggested_eth
+
         pygame.key.start_text_input()
         self.listing_input_active = True
         self.listing_input_text = ""
-        weapon = self.weapons[self.inventory_selection]
-        self.inventory_feedback = f"🎯 上架 #{weapon['id']:02d} {weapon['name']} - 输入价格 (ETH) 然后回车，上限 6 位小数"
-    
+        self.inventory_feedback = f"🎯 上架 #{weapon['id']:02d} {weapon['name']}"
+
     def handle_listing_price_event(self, event):
         """处理上架价格输入事件"""
         if event.key == pygame.K_ESCAPE:
@@ -702,23 +799,65 @@ class BlockchainGame:
                 return
             self.listing_input_text += event.unicode
     
+    def open_inventory_detail(self, weapon):
+        """打开背包武器详情窗口"""
+        self.inventory_detail_active = True
+        self.inventory_detail_weapon = weapon
+
+    def handle_inventory_detail_event(self, event):
+        """处理背包武器详情窗口的输入"""
+        if event.key == pygame.K_ESCAPE:
+            # 关闭详情窗口
+            self.inventory_detail_active = False
+            self.inventory_detail_weapon = None
+            return
+
+        if event.key in (pygame.K_RETURN, pygame.K_KP_ENTER, pygame.K_e):
+            # 装备该武器
+            weapon = self.inventory_detail_weapon
+            weapon_index = self.weapons.index(weapon)
+            self.current_weapon_index = weapon_index
+            self.update_weapon_profile(weapon)
+            self.inventory_detail_active = False
+            self.inventory_detail_weapon = None
+            print(f"✅ 已装备武器: {weapon['name']}")
+            return
+
+        if event.key == pygame.K_l:
+            # 上架该武器
+            weapon = self.inventory_detail_weapon
+            self.inventory_detail_active = False
+            self.inventory_detail_weapon = None
+            weapon_index = self.weapons.index(weapon)
+            self.inventory_selection = weapon_index
+            self.start_listing_current_weapon()
+            return
+
     def handle_inventory_input(self, event):
         """处理背包输入"""
         if not self.weapons:
             if event.type == pygame.KEYDOWN and event.key == pygame.K_i:
                 self.toggle_inventory()
             return
+
         if event.type == pygame.KEYDOWN:
+            # 如果详情窗口已打开，处理详情窗口的输入
+            if self.inventory_detail_active:
+                self.handle_inventory_detail_event(event)
+                return
+
             if self.listing_input_active:
                 self.handle_listing_price_event(event)
                 return
+
             if event.key == pygame.K_UP:
                 self.inventory_selection = max(0, self.inventory_selection - 1)
             elif event.key == pygame.K_DOWN:
                 self.inventory_selection = min(len(self.weapons) - 1, self.inventory_selection + 1)
             elif event.key in (pygame.K_RETURN, pygame.K_KP_ENTER):
-                self.current_weapon_index = self.inventory_selection
-                self.update_weapon_profile(self.get_current_weapon())
+                # 打开武器详情窗口
+                weapon = self.weapons[self.inventory_selection]
+                self.open_inventory_detail(weapon)
             elif event.key == pygame.K_i:
                 self.toggle_inventory()
             elif event.key == pygame.K_l:
@@ -732,14 +871,21 @@ class BlockchainGame:
             elif event.type == pygame.KEYDOWN and event.key == pygame.K_r:
                 self.load_market_weapons()
             return
+
         if event.type == pygame.KEYDOWN:
+            # 如果购买确认窗口已打开，处理确认窗口的输入
+            if self.purchase_confirm_active:
+                self.handle_purchase_confirm_event(event)
+                return
+
             if event.key == pygame.K_UP:
                 self.market_selection = max(0, self.market_selection - 1)
             elif event.key == pygame.K_DOWN:
                 self.market_selection = min(len(self.market_weapons) - 1, self.market_selection + 1)
             elif event.key in (pygame.K_RETURN, pygame.K_KP_ENTER):
+                # 打开购买确认窗口
                 weapon = self.market_weapons[self.market_selection]
-                self.purchase_weapon(weapon)
+                self.start_purchase_confirm(weapon)
             elif event.key == pygame.K_r:
                 self.load_market_weapons()
             elif event.key == pygame.K_m:
@@ -751,7 +897,7 @@ class BlockchainGame:
             if event.key == pygame.K_UP:
                 self.menu_selection = max(0, self.menu_selection - 1)
             elif event.key == pygame.K_DOWN:
-                self.menu_selection = min(3, self.menu_selection + 1)
+                self.menu_selection = min(4, self.menu_selection + 1)  # 改为4个选项
             elif event.key in (pygame.K_RETURN, pygame.K_KP_ENTER):
                 if self.menu_selection == 0:  # 个人中心
                     self.game_state = "profile"
@@ -760,11 +906,13 @@ class BlockchainGame:
                 elif self.menu_selection == 2:  # 排行榜
                     self.load_leaderboard()
                     self.game_state = "leaderboard"
-                elif self.menu_selection == 3:  # 切换账户
-                    if self.blockchain_manager.blockchain_available and self.all_accounts:
-                        self.game_state = "account_select"
-                    else:
-                        print("⚠️ 区块链未连接或没有可用账户")
+                elif self.menu_selection == 3:  # 好友系统
+                    self.game_state = "friends"
+                    self.friend_tab = 0
+                elif self.menu_selection == 4:  # 退出登录
+                    self.user_manager.logout()
+                    self.game_state = "login"
+                    print("✅ 已退出登录")
             elif event.key == pygame.K_ESCAPE:
                 return "quit"
         return None
@@ -922,21 +1070,462 @@ class BlockchainGame:
         """开启箱子"""
         print(f"🎁 正在开启 {case['name']}...")
 
-        if self.blockchain_manager.open_case_from_inventory(
+        result = self.blockchain_manager.open_case_from_inventory(
             self.blockchain_manager.account,
             case['id']
-        ):
+        )
+
+        if result:
             # 刷新数据
             self.load_player_data()
             self.load_case_data()
 
-            # 获取最新的武器（应该是刚开出来的）
-            if self.weapons:
-                self.opened_weapon = self.weapons[-1]
-                self.show_case_open_result = True
-                print(f"🎉 恭喜获得：{self.opened_weapon['name']}！")
+            # 如果返回的是武器ID，则根据ID查找武器
+            if isinstance(result, int):
+                # 在所有武器中查找对应ID的武器
+                all_weapons = self.weapons + self.listed_weapons
+                self.opened_weapon = next((w for w in all_weapons if w['id'] == result), None)
+                if self.opened_weapon:
+                    weapon_type = self.weapon_manager.detect_weapon_type(self.opened_weapon.get('original_name', ''))
+                    print(f"🎉 恭喜获得：{self.opened_weapon['name']}！")
+                    print(f"   武器ID: {self.opened_weapon['id']}")
+                    print(f"   原始名称: {self.opened_weapon.get('original_name', 'N/A')}")
+                    print(f"   稀有度: {self.opened_weapon['rarity'].name}")
+                    print(f"   检测类型: {weapon_type}")
+                    print(f"   伤害倍率: {self.opened_weapon['damage_multiplier']:.1f}x")
+                else:
+                    print(f"⚠️ 未找到武器ID {result}，使用备选方案")
+                    # 如果没找到，使用最新的武器
+                    if self.weapons:
+                        self.opened_weapon = self.weapons[0]  # 第一个是最高稀有度的
+                        print(f"🎉 恭喜获得：{self.opened_weapon['name']}！")
+            else:
+                # 向后兼容旧版本返回值
+                if self.weapons:
+                    self.opened_weapon = self.weapons[0]
+                    print(f"🎉 恭喜获得：{self.opened_weapon['name']}！")
+
+            self.show_case_open_result = True
         else:
             print("❌ 开箱失败")
+
+    # ==================== 登录/注册处理 ====================
+
+    def handle_login_input(self, event):
+        """处理登录输入"""
+        if event.type == pygame.KEYDOWN:
+            if event.key == pygame.K_TAB:
+                # TAB键切换输入框
+                self.login_active_field = "password" if self.login_active_field == "username" else "username"
+            elif event.key == pygame.K_UP:
+                # 上箭头：切换到上一个输入框
+                self.login_active_field = "username"
+            elif event.key == pygame.K_DOWN:
+                # 下箭头：切换到下一个输入框
+                self.login_active_field = "password"
+            elif event.key == pygame.K_BACKSPACE:
+                if self.login_active_field == "username":
+                    self.login_username = self.login_username[:-1]
+                else:
+                    self.login_password = self.login_password[:-1]
+            elif event.key in (pygame.K_RETURN, pygame.K_KP_ENTER):
+                # 尝试登录
+                success, message = self.user_manager.login(self.login_username, self.login_password)
+                self.login_message = message
+                self.login_success = success
+
+                if success:
+                    print(f"✅ {message}")
+                    # 登录成功，加载游戏数据
+                    print("🔄 正在加载游戏数据...")
+                    self.load_player_data()
+                    self.generate_grass()
+                    self.load_market_weapons()
+                    self.load_case_data()
+                    print("✅ 游戏数据加载完成")
+                    # 进入开始菜单
+                    pygame.time.wait(500)
+                    self.game_state = "start_menu"
+                    self.login_username = ""
+                    self.login_password = ""
+                    self.login_message = ""
+                else:
+                    print(f"❌ {message}")
+            elif event.key == pygame.K_ESCAPE:
+                return "quit"
+            elif event.unicode and len(event.unicode) > 0:
+                # 文本输入
+                if self.login_active_field == "username" and len(self.login_username) < 20:
+                    if event.unicode.isalnum() or event.unicode in "_-":
+                        self.login_username += event.unicode
+                elif self.login_active_field == "password" and len(self.login_password) < 30:
+                    if event.unicode.isprintable():
+                        self.login_password += event.unicode
+
+        elif event.type == pygame.MOUSEBUTTONDOWN:
+            # 检测鼠标点击
+            mouse_x, mouse_y = event.pos
+
+            # 检测输入框点击
+            if hasattr(self, 'login_username_box') and self.login_username_box.collidepoint(mouse_x, mouse_y):
+                self.login_active_field = "username"
+                print("🖱️ 点击用户名输入框")
+            elif hasattr(self, 'login_password_box') and self.login_password_box.collidepoint(mouse_x, mouse_y):
+                self.login_active_field = "password"
+                print("🖱️ 点击密码输入框")
+
+            # 检测登录按钮
+            elif hasattr(self, 'login_login_button') and self.login_login_button.collidepoint(mouse_x, mouse_y):
+                success, message = self.user_manager.login(self.login_username, self.login_password)
+                self.login_message = message
+                self.login_success = success
+
+                if success:
+                    print(f"✅ {message}")
+                    # 登录成功，加载游戏数据
+                    print("🔄 正在加载游戏数据...")
+                    self.load_player_data()
+                    self.generate_grass()
+                    self.load_market_weapons()
+                    self.load_case_data()
+                    print("✅ 游戏数据加载完成")
+                    pygame.time.wait(500)
+                    self.game_state = "start_menu"
+                    self.login_username = ""
+                    self.login_password = ""
+                    self.login_message = ""
+
+            # 检测注册按钮
+            elif hasattr(self, 'login_register_button') and self.login_register_button.collidepoint(mouse_x, mouse_y):
+                self.game_state = "register"
+                self.register_message = ""
+
+    def handle_register_input(self, event):
+        """处理注册输入"""
+        if event.type == pygame.KEYDOWN:
+            fields = ['username', 'email', 'password', 'confirm_password']
+            current_idx = fields.index(self.register_active_field)
+
+            if event.key == pygame.K_TAB:
+                # TAB键：循环切换到下一个输入框
+                self.register_active_field = fields[(current_idx + 1) % len(fields)]
+            elif event.key == pygame.K_UP:
+                # 上箭头：切换到上一个输入框
+                self.register_active_field = fields[(current_idx - 1) % len(fields)]
+            elif event.key == pygame.K_DOWN:
+                # 下箭头：切换到下一个输入框
+                self.register_active_field = fields[(current_idx + 1) % len(fields)]
+            elif event.key == pygame.K_BACKSPACE:
+                if self.register_active_field == 'username':
+                    self.register_username = self.register_username[:-1]
+                elif self.register_active_field == 'email':
+                    self.register_email = self.register_email[:-1]
+                elif self.register_active_field == 'password':
+                    self.register_password = self.register_password[:-1]
+                elif self.register_active_field == 'confirm_password':
+                    self.register_confirm_password = self.register_confirm_password[:-1]
+            elif event.key in (pygame.K_RETURN, pygame.K_KP_ENTER):
+                # 尝试注册
+                if self.register_password != self.register_confirm_password:
+                    self.register_message = "两次密码输入不一致"
+                    self.register_success = False
+                else:
+                    success, message, wallet = self.user_manager.register_user(
+                        self.register_username,
+                        self.register_email,
+                        self.register_password
+                    )
+                    self.register_message = message
+                    self.register_success = success
+
+                    if success:
+                        print(f"✅ {message}")
+                        print(f"   钱包地址: {wallet}")
+                        pygame.time.wait(1500)
+                        # 注册成功，返回登录
+                        self.game_state = "login"
+                        self.login_username = self.register_username
+                        self.register_username = ""
+                        self.register_email = ""
+                        self.register_password = ""
+                        self.register_confirm_password = ""
+                        self.register_message = ""
+                    else:
+                        print(f"❌ {message}")
+            elif event.key == pygame.K_ESCAPE:
+                # 返回登录
+                self.game_state = "login"
+                self.register_message = ""
+            elif event.unicode and len(event.unicode) > 0:
+                # 文本输入
+                if self.register_active_field == 'username' and len(self.register_username) < 20:
+                    if event.unicode.isalnum() or event.unicode in "_-":
+                        self.register_username += event.unicode
+                elif self.register_active_field == 'email' and len(self.register_email) < 50:
+                    if event.unicode.isprintable():
+                        self.register_email += event.unicode
+                elif self.register_active_field == 'password' and len(self.register_password) < 30:
+                    if event.unicode.isprintable():
+                        self.register_password += event.unicode
+                elif self.register_active_field == 'confirm_password' and len(self.register_confirm_password) < 30:
+                    if event.unicode.isprintable():
+                        self.register_confirm_password += event.unicode
+
+        elif event.type == pygame.MOUSEBUTTONDOWN:
+            mouse_x, mouse_y = event.pos
+
+            # 检测输入框点击
+            if hasattr(self, 'register_username_box') and self.register_username_box.collidepoint(mouse_x, mouse_y):
+                self.register_active_field = 'username'
+                print("🖱️ 点击用户名输入框")
+            elif hasattr(self, 'register_email_box') and self.register_email_box.collidepoint(mouse_x, mouse_y):
+                self.register_active_field = 'email'
+                print("🖱️ 点击邮箱输入框")
+            elif hasattr(self, 'register_password_box') and self.register_password_box.collidepoint(mouse_x, mouse_y):
+                self.register_active_field = 'password'
+                print("🖱️ 点击密码输入框")
+            elif hasattr(self, 'register_confirm_password_box') and self.register_confirm_password_box.collidepoint(mouse_x, mouse_y):
+                self.register_active_field = 'confirm_password'
+                print("🖱️ 点击确认密码输入框")
+
+            # 检测确认按钮
+            elif hasattr(self, 'register_confirm_button') and self.register_confirm_button.collidepoint(mouse_x, mouse_y):
+                if self.register_password != self.register_confirm_password:
+                    self.register_message = "两次密码输入不一致"
+                    self.register_success = False
+                else:
+                    success, message, wallet = self.user_manager.register_user(
+                        self.register_username,
+                        self.register_email,
+                        self.register_password
+                    )
+                    self.register_message = message
+                    self.register_success = success
+
+                    if success:
+                        pygame.time.wait(1500)
+                        self.game_state = "login"
+                        self.login_username = self.register_username
+                        self.register_username = ""
+                        self.register_email = ""
+                        self.register_password = ""
+                        self.register_confirm_password = ""
+                        self.register_message = ""
+
+            # 检测取消按钮
+            elif hasattr(self, 'register_cancel_button') and self.register_cancel_button.collidepoint(mouse_x, mouse_y):
+                self.game_state = "login"
+                self.register_message = ""
+
+    def handle_friends_input(self, event):
+        """处理好友系统输入"""
+        if event.type == pygame.KEYDOWN:
+            if event.key == pygame.K_LEFT:
+                self.friend_tab = max(0, self.friend_tab - 1)
+            elif event.key == pygame.K_RIGHT:
+                self.friend_tab = min(3, self.friend_tab + 1)
+            elif event.key == pygame.K_ESCAPE:
+                self.game_state = "start_menu"
+
+            # 根据当前标签页处理不同的输入
+            if self.friend_tab == 0:  # 好友列表
+                if event.key == pygame.K_UP:
+                    friends = self.user_manager.get_friends_list()
+                    self.friend_selection = max(0, self.friend_selection - 1)
+                elif event.key == pygame.K_DOWN:
+                    friends = self.user_manager.get_friends_list()
+                    self.friend_selection = min(len(friends) - 1, self.friend_selection + 1)
+                elif event.key in (pygame.K_RETURN, pygame.K_KP_ENTER):
+                    # ENTER键发起交易
+                    friends = self.user_manager.get_friends_list()
+                    if self.friend_selection < len(friends):
+                        friend = friends[self.friend_selection]
+                        print(f"🔄 准备与 {friend} 进行交易")
+                        # TODO: 实现交易界面
+                        print("💡 提示：交易功能开发中...")
+                elif event.key == pygame.K_DELETE:
+                    # DELETE键删除好友
+                    friends = self.user_manager.get_friends_list()
+                    if self.friend_selection < len(friends):
+                        friend = friends[self.friend_selection]
+                        print(f"⚠️ 确认删除好友 {friend}？")
+                        # TODO: 添加确认对话框
+
+            elif self.friend_tab == 1:  # 好友请求
+                if event.key == pygame.K_UP:
+                    requests = self.user_manager.get_friend_requests()
+                    self.friend_request_selection = max(0, self.friend_request_selection - 1)
+                elif event.key == pygame.K_DOWN:
+                    requests = self.user_manager.get_friend_requests()
+                    self.friend_request_selection = min(len(requests) - 1, self.friend_request_selection + 1)
+                elif event.key in (pygame.K_RETURN, pygame.K_KP_ENTER):
+                    # 接受好友请求
+                    requests = self.user_manager.get_friend_requests()
+                    if self.friend_request_selection < len(requests):
+                        requester = requests[self.friend_request_selection]
+                        success, message = self.user_manager.accept_friend_request(requester)
+                        print(f"{'✅' if success else '❌'} {message}")
+                elif event.key == pygame.K_DELETE:
+                    # 拒绝好友请求
+                    requests = self.user_manager.get_friend_requests()
+                    if self.friend_request_selection < len(requests):
+                        requester = requests[self.friend_request_selection]
+                        success, message = self.user_manager.reject_friend_request(requester)
+                        print(f"{'✅' if success else '❌'} {message}")
+
+            elif self.friend_tab == 2:  # 交易请求
+                if event.key == pygame.K_UP:
+                    trades = self.user_manager.get_trade_requests()
+                    pending = [t for t in trades if t['status'] == 'pending']
+                    self.trade_request_selection = max(0, self.trade_request_selection - 1)
+                elif event.key == pygame.K_DOWN:
+                    trades = self.user_manager.get_trade_requests()
+                    pending = [t for t in trades if t['status'] == 'pending']
+                    self.trade_request_selection = min(len(pending) - 1, self.trade_request_selection + 1)
+                elif event.key in (pygame.K_RETURN, pygame.K_KP_ENTER):
+                    # 接受交易请求
+                    trades = self.user_manager.get_trade_requests()
+                    pending = [t for t in trades if t['status'] == 'pending']
+                    if self.trade_request_selection < len(pending):
+                        trade = pending[self.trade_request_selection]
+                        success, message, trade_data = self.user_manager.accept_trade_request(trade['trade_id'])
+                        print(f"{'✅' if success else '❌'} {message}")
+                        # TODO: 在区块链上执行交易
+                elif event.key == pygame.K_DELETE:
+                    # 拒绝交易请求
+                    trades = self.user_manager.get_trade_requests()
+                    pending = [t for t in trades if t['status'] == 'pending']
+                    if self.trade_request_selection < len(pending):
+                        trade = pending[self.trade_request_selection]
+                        success, message = self.user_manager.reject_trade_request(trade['trade_id'])
+                        print(f"{'✅' if success else '❌'} {message}")
+
+            elif self.friend_tab == 3:  # 添加好友
+                if event.key == pygame.K_UP:
+                    # 在搜索结果中向上选择
+                    if hasattr(self, 'friend_add_selection'):
+                        self.friend_add_selection = max(0, self.friend_add_selection - 1)
+                    else:
+                        self.friend_add_selection = 0
+                elif event.key == pygame.K_DOWN:
+                    # 在搜索结果中向下选择
+                    results = getattr(self, 'friend_search_results', [])
+                    if not hasattr(self, 'friend_add_selection'):
+                        self.friend_add_selection = 0
+                    self.friend_add_selection = min(len(results) - 1, self.friend_add_selection + 1)
+                elif event.key in (pygame.K_RETURN, pygame.K_KP_ENTER):
+                    # 添加选中的用户为好友
+                    results = getattr(self, 'friend_search_results', [])
+                    selection = getattr(self, 'friend_add_selection', 0)
+                    if results and selection < len(results):
+                        target_user = results[selection]['username']
+                        success, message = self.user_manager.send_friend_request(target_user)
+                        print(f"{'✅' if success else '❌'} {message}")
+                        # 显示反馈（可以添加临时消息）
+                        self.friend_add_message = message
+                        self.friend_add_success = success
+                elif event.key == pygame.K_BACKSPACE:
+                    self.friend_search_text = self.friend_search_text[:-1]
+                    # 实时搜索
+                    self.friend_search_results = self.user_manager.search_users(self.friend_search_text)
+                    self.friend_add_selection = 0  # 重置选择
+                elif event.unicode and len(event.unicode) > 0 and len(self.friend_search_text) < 20:
+                    if event.unicode.isalnum() or event.unicode in "_-@.":
+                        self.friend_search_text += event.unicode
+                        # 实时搜索
+                        self.friend_search_results = self.user_manager.search_users(self.friend_search_text)
+                        self.friend_add_selection = 0  # 重置选择
+
+        elif event.type == pygame.MOUSEBUTTONDOWN:
+            mouse_x, mouse_y = event.pos
+
+            # 好友列表 - 点击交易和删除按钮
+            if self.friend_tab == 0:
+                friends = self.user_manager.get_friends_list()
+                start_y = 200
+                for i, friend in enumerate(friends[:6]):
+                    y = start_y + i * 70
+
+                    # 交易按钮
+                    trade_btn = pygame.Rect(WIDTH - 240, y + 15, 80, 30)
+                    if trade_btn.collidepoint(mouse_x, mouse_y):
+                        print(f"🔄 准备与 {friend} 进行交易")
+                        # TODO: 实现交易界面
+                        print("💡 提示：交易功能开发中...")
+                        break
+
+                    # 删除按钮
+                    remove_btn = pygame.Rect(WIDTH - 145, y + 15, 70, 30)
+                    if remove_btn.collidepoint(mouse_x, mouse_y):
+                        # 删除好友（需要确认）
+                        print(f"⚠️ 确认删除好友 {friend}？")
+                        # TODO: 添加确认对话框
+                        break
+
+            # 好友请求 - 点击接受和拒绝按钮
+            elif self.friend_tab == 1:
+                requests = self.user_manager.get_friend_requests()
+                start_y = 200
+                for i, requester in enumerate(requests[:6]):
+                    y = start_y + i * 75
+                    btn_y = y + 17
+
+                    # 接受按钮
+                    accept_btn = pygame.Rect(WIDTH - 260, btn_y, 90, 32)
+                    if accept_btn.collidepoint(mouse_x, mouse_y):
+                        success, message = self.user_manager.accept_friend_request(requester)
+                        print(f"{'✅' if success else '❌'} {message}")
+                        break
+
+                    # 拒绝按钮
+                    reject_btn = pygame.Rect(WIDTH - 155, btn_y, 90, 32)
+                    if reject_btn.collidepoint(mouse_x, mouse_y):
+                        success, message = self.user_manager.reject_friend_request(requester)
+                        print(f"{'✅' if success else '❌'} {message}")
+                        break
+
+            # 交易请求 - 点击接受和拒绝按钮
+            elif self.friend_tab == 2:
+                trades = self.user_manager.get_trade_requests()
+                pending_trades = [t for t in trades if t['status'] == 'pending']
+                start_y = 200
+                for i, trade in enumerate(pending_trades[:5]):
+                    y = start_y + i * 95
+                    btn_y = y + 27
+
+                    # 接受按钮
+                    accept_btn = pygame.Rect(WIDTH - 260, btn_y, 90, 32)
+                    if accept_btn.collidepoint(mouse_x, mouse_y):
+                        success, message, trade_data = self.user_manager.accept_trade_request(trade['trade_id'])
+                        print(f"{'✅' if success else '❌'} {message}")
+                        # TODO: 在区块链上执行交易
+                        break
+
+                    # 拒绝按钮
+                    reject_btn = pygame.Rect(WIDTH - 155, btn_y, 90, 32)
+                    if reject_btn.collidepoint(mouse_x, mouse_y):
+                        success, message = self.user_manager.reject_trade_request(trade['trade_id'])
+                        print(f"{'✅' if success else '❌'} {message}")
+                        break
+
+            # 添加好友 - 点击添加好友按钮
+            elif self.friend_tab == 3:
+                results = getattr(self, 'friend_search_results', [])
+                start_y = 310  # 搜索结果起始Y坐标（根据UI设计调整）
+
+                for i, user in enumerate(results[:5]):
+                    y = start_y + i * 75
+                    add_btn = pygame.Rect(WIDTH - 220, y + 17, 110, 32)
+
+                    if add_btn.collidepoint(mouse_x, mouse_y):
+                        # 点击了添加好友按钮
+                        target_user = user['username']
+                        success, message = self.user_manager.send_friend_request(target_user)
+                        print(f"{'✅' if success else '❌'} {message}")
+                        self.friend_add_message = message
+                        self.friend_add_success = success
+                        break
+
 
     def close_case_result(self):
         """关闭开箱结果"""

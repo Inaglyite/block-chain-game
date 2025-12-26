@@ -64,7 +64,7 @@ class BlockchainManager:
         """设置区块链连接"""
         try:
             print(f"🔌 正在连接区块链 RPC: {self.rpc_url}")
-            self.w3 = Web3(Web3.HTTPProvider(self.rpc_url, request_kwargs={"timeout": 5}))
+            self.w3 = Web3(Web3.HTTPProvider(self.rpc_url, request_kwargs={"timeout": 1}))  # 减少超时时间
             try:
                 block_number = self.w3.eth.block_number
                 print(f"✅ 连接到区块链网络，最新区块: {block_number}")
@@ -520,9 +520,9 @@ class BlockchainManager:
             return False
 
     def open_case_from_inventory(self, account, case_id):
-        """从库存打开箱子"""
+        """从库存打开箱子，返回新武器的ID"""
         if not self.blockchain_available:
-            return False
+            return None
         try:
             tx = self.contract.functions.openCaseFromInventory(case_id).build_transaction({
                 'from': account,
@@ -536,14 +536,25 @@ class BlockchainManager:
             status = getattr(receipt, 'status', 1)
             if status == 1:
                 print("✅ 开箱成功！")
-                return True
+                # 从事件日志中获取新武器的ID
+                try:
+                    # 查找 CaseOpened 事件
+                    case_opened_event = self.contract.events.CaseOpened()
+                    logs = case_opened_event.process_receipt(receipt)
+                    if logs:
+                        weapon_id = logs[0]['args']['weaponId']
+                        print(f"🎁 获得新武器 ID: {weapon_id}")
+                        return weapon_id
+                except Exception as e:
+                    print(f"⚠️ 解析开箱事件失败: {e}")
+                return True  # 向后兼容
             else:
                 print("❌ 开箱交易失败")
-                return False
+                return None
         except Exception as err:
             print(f"开箱失败: {err}")
             traceback.print_exc()
-            return False
+            return None
 
     def get_user_case_inventory(self, account):
         """获取用户的箱子库存"""

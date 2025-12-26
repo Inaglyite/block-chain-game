@@ -3,13 +3,15 @@
 UI绘制模块
 """
 import pygame
-from .config import WIDTH, HEIGHT
+from .config import WIDTH, HEIGHT, PURPLE, GOLD
 from .utils import load_chinese_font, load_emoji_font, render_text_with_emoji
+from src.weapon import Rarity
 
 # --- 现代主题颜色 ---
 THEME = {
     "background": (240, 242, 248),      # 柔和的浅蓝灰色背景
     "text": (45, 52, 70),               # 深蓝灰色文字
+    "dark": (45, 52, 70),               # 深色文字（同text）
     "primary": (79, 70, 229),           # 靛蓝色主色调
     "primary_light": (129, 120, 255),   # 亮靛蓝
     "secondary": (16, 185, 129),        # 翠绿色
@@ -19,6 +21,7 @@ THEME = {
     "highlight": (254, 243, 199),       # 淡黄色高亮
     "danger": (239, 68, 68),            # 红色警告
     "danger_light": (252, 165, 165),    # 浅红色
+    "warning": (251, 146, 60),          # 警告色（橙色）
     "success": (34, 197, 94),           # 成功绿
     "info": (59, 130, 246),             # 信息蓝
     "white": (255, 255, 255),
@@ -377,7 +380,7 @@ class UIRenderer:
         # 操作按钮提示
         hints = [
             ("↑↓", "选择", THEME["primary"]),
-            ("Enter", "切换装备", THEME["secondary"]),
+            ("Enter", "查看详情", THEME["secondary"]),
             ("L", "上架出售", THEME["accent"]),
             ("I/ESC", "返回", THEME["mid_gray"])
         ]
@@ -396,33 +399,357 @@ class UIRenderer:
 
             hint_x += key_rect.width + action_text.get_width() + 40
 
-        # 上架输入框 - 现代对话框设计
-        if game.listing_input_active:
+        # 背包武器详情窗口 - 精美设计，显示完整信息
+        if game.inventory_detail_active and game.inventory_detail_weapon:
+            weapon = game.inventory_detail_weapon
+
             # 半透明遮罩
             overlay = pygame.Surface((WIDTH, HEIGHT), pygame.SRCALPHA)
-            overlay.fill((0, 0, 0, 150))
+            overlay.fill((0, 0, 0, 180))
             surface.blit(overlay, (0, 0))
 
-            # 对话框
-            dialog_rect = pygame.Rect(WIDTH // 2 - 250, HEIGHT // 2 - 80, 500, 160)
+            # 主对话框
+            dialog_width = 700
+            dialog_height = 600
+            dialog_rect = pygame.Rect(WIDTH // 2 - dialog_width // 2, HEIGHT // 2 - dialog_height // 2,
+                                      dialog_width, dialog_height)
             draw_card_with_shadow(surface, dialog_rect, THEME["white"], THEME["primary"], 3, 20)
 
-            # 标题
-            title_text = header_font.render("设置价格", True, THEME["primary"])
-            surface.blit(title_text, (dialog_rect.x + 30, dialog_rect.y + 25))
+            # 标题栏
+            title_bar_rect = pygame.Rect(dialog_rect.x, dialog_rect.y, dialog_width, 60)
+            draw_gradient_rect(surface, title_bar_rect, THEME["primary"], THEME["secondary"])
 
-            # 输入框
-            input_rect = pygame.Rect(dialog_rect.x + 30, dialog_rect.y + 70, 440, 45)
-            pygame.draw.rect(surface, THEME["background"], input_rect, border_radius=8)
-            pygame.draw.rect(surface, THEME["primary"], input_rect, 2, border_radius=8)
+            title_text = header_font.render("武器详情", True, THEME["white"])
+            surface.blit(title_text, (dialog_rect.x + dialog_width // 2 - title_text.get_width() // 2,
+                                     dialog_rect.y + 18))
 
-            prompt_text = f"{game.listing_input_text}_ ETH"
-            prompt_surf = header_font.render(prompt_text, True, THEME["primary"])
-            surface.blit(prompt_surf, (input_rect.x + 15, input_rect.y + 8))
+            # 内容区域起始Y坐标
+            content_y = dialog_rect.y + 75
 
-            # 取消提示
-            esc_hint = small_font.render("按 ESC 取消", True, THEME["mid_gray"])
-            surface.blit(esc_hint, (dialog_rect.x + 30, dialog_rect.y + 125))
+            # 左侧：武器信息
+            left_x = dialog_rect.x + 30
+
+            # 武器ID和名称
+            id_text = small_font.render(f"#{weapon['id']:03d}", True, THEME["mid_gray"])
+            surface.blit(id_text, (left_x, content_y))
+
+            weapon_name = default_font.render(weapon['name'], True, THEME["dark"])
+            surface.blit(weapon_name, (left_x, content_y + 25))
+
+            # 稀有度
+            rarity_names = {
+                Rarity.COMMON: "普通",
+                Rarity.RARE: "稀有",
+                Rarity.EPIC: "史诗",
+                Rarity.LEGENDARY: "传说"
+            }
+            rarity_colors = {
+                Rarity.COMMON: THEME["mid_gray"],
+                Rarity.RARE: THEME["info"],
+                Rarity.EPIC: PURPLE,
+                Rarity.LEGENDARY: GOLD
+            }
+            rarity_name = rarity_names.get(weapon['rarity'], "未知")
+            rarity_color = rarity_colors.get(weapon['rarity'], THEME["mid_gray"])
+
+            rarity_text = default_font.render(f"稀有度: {rarity_name}", True, rarity_color)
+            surface.blit(rarity_text, (left_x, content_y + 65))
+
+            # 武器类型
+            weapon_type = game.weapon_manager.detect_weapon_type(weapon.get('original_name', ''))
+            type_text = default_font.render(f"类型: {weapon_type}", True, THEME["dark"])
+            surface.blit(type_text, (left_x, content_y + 100))
+
+            # 伤害倍率
+            damage_text = default_font.render(f"伤害倍率: {weapon['damage_multiplier']:.1f}x", True, THEME["dark"])
+            surface.blit(damage_text, (left_x, content_y + 135))
+
+            # 磨损度信息
+            if weapon.get('wear') is not None:
+                from .utils import format_wear_value, get_condition_name
+                wear_str = format_wear_value(weapon['wear'])
+                condition_str = get_condition_name(weapon['wear'])
+
+                wear_text = default_font.render(f"磨损度: {wear_str}", True, THEME["dark"])
+                surface.blit(wear_text, (left_x, content_y + 170))
+
+                condition_text = default_font.render(f"品相: {condition_str}", True, THEME["info"])
+                surface.blit(condition_text, (left_x, content_y + 205))
+
+                # 磨损度进度条
+                wear_bar_rect = pygame.Rect(left_x, content_y + 240, 280, 20)
+                pygame.draw.rect(surface, THEME["background"], wear_bar_rect, border_radius=10)
+                wear_percent = weapon['wear']
+                if wear_percent > 0:
+                    fill_width = int(wear_bar_rect.width * wear_percent)
+                    fill_rect = pygame.Rect(wear_bar_rect.x, wear_bar_rect.y, fill_width, wear_bar_rect.height)
+                    # 磨损度颜色：绿色到红色渐变
+                    if wear_percent < 0.07:
+                        bar_color = (76, 175, 80)  # 绿色 S级
+                    elif wear_percent < 0.15:
+                        bar_color = (139, 195, 74)  # 浅绿 A级
+                    elif wear_percent < 0.38:
+                        bar_color = (255, 193, 7)  # 黄色 B级
+                    elif wear_percent < 0.45:
+                        bar_color = (255, 152, 0)  # 橙色 C级
+                    else:
+                        bar_color = (244, 67, 54)  # 红色 D/E级
+                    pygame.draw.rect(surface, bar_color, fill_rect, border_radius=10)
+                pygame.draw.rect(surface, THEME["mid_gray"], wear_bar_rect, 2, border_radius=10)
+
+            # 右侧：武器贴图
+            weapon_sprite = game.weapon_manager.get_weapon_sprite(weapon)
+            if weapon_sprite:
+                # 放大显示
+                scale = 3.5
+                scaled_sprite = pygame.transform.scale(
+                    weapon_sprite,
+                    (int(weapon_sprite.get_width() * scale), int(weapon_sprite.get_height() * scale))
+                )
+                sprite_x = dialog_rect.x + dialog_width - scaled_sprite.get_width() - 50
+                sprite_y = content_y + 60
+
+                # 武器背景框
+                sprite_bg_rect = pygame.Rect(sprite_x - 20, sprite_y - 20,
+                                             scaled_sprite.get_width() + 40,
+                                             scaled_sprite.get_height() + 40)
+                pygame.draw.rect(surface, THEME["background"], sprite_bg_rect, border_radius=12)
+                pygame.draw.rect(surface, rarity_color, sprite_bg_rect, 3, border_radius=12)
+
+                surface.blit(scaled_sprite, (sprite_x, sprite_y))
+
+            # 装备状态显示
+            status_y = content_y + 280
+            weapon_index = game.weapons.index(weapon)
+            is_equipped = weapon_index == game.current_weapon_index
+
+            if is_equipped:
+                status_rect = pygame.Rect(left_x, status_y, 280, 40)
+                pygame.draw.rect(surface, (76, 175, 80, 50), status_rect, border_radius=8)
+                pygame.draw.rect(surface, THEME["success"], status_rect, 2, border_radius=8)
+
+                status_text = default_font.render("✓ 当前已装备", True, THEME["success"])
+                surface.blit(status_text, (status_rect.centerx - status_text.get_width() // 2,
+                                          status_rect.centery - status_text.get_height() // 2))
+            else:
+                status_text = small_font.render("未装备", True, THEME["mid_gray"])
+                surface.blit(status_text, (left_x, status_y + 10))
+
+            # 按钮区域
+            button_y = dialog_rect.bottom - 80
+            button_width = 150
+            button_height = 45
+            button_spacing = 20
+
+            # 装备/已装备按钮
+            equip_btn = pygame.Rect(dialog_rect.x + 50, button_y, button_width, button_height)
+            if is_equipped:
+                # 已装备状态
+                pygame.draw.rect(surface, THEME["mid_gray"], equip_btn, border_radius=10)
+                equip_text = default_font.render("已装备", True, THEME["white"])
+            else:
+                # 可装备状态
+                pygame.draw.rect(surface, THEME["success"], equip_btn, border_radius=10)
+                pygame.draw.rect(surface, THEME["white"], equip_btn, 2, border_radius=10)
+                equip_text = default_font.render("装备 (Enter/E)", True, THEME["white"])
+
+            surface.blit(equip_text, (equip_btn.centerx - equip_text.get_width() // 2,
+                                     equip_btn.centery - equip_text.get_height() // 2))
+
+            # 上架按钮
+            list_btn = pygame.Rect(dialog_rect.x + 50 + button_width + button_spacing,
+                                   button_y, button_width, button_height)
+            pygame.draw.rect(surface, THEME["accent"], list_btn, border_radius=10)
+            pygame.draw.rect(surface, THEME["white"], list_btn, 2, border_radius=10)
+
+            list_text = default_font.render("上架 (L)", True, THEME["white"])
+            surface.blit(list_text, (list_btn.centerx - list_text.get_width() // 2,
+                                    list_btn.centery - list_text.get_height() // 2))
+
+            # 关闭按钮
+            close_btn = pygame.Rect(dialog_rect.x + 50 + (button_width + button_spacing) * 2,
+                                   button_y, button_width, button_height)
+            pygame.draw.rect(surface, THEME["mid_gray"], close_btn, border_radius=10)
+            pygame.draw.rect(surface, THEME["white"], close_btn, 2, border_radius=10)
+
+            close_text = default_font.render("关闭 (ESC)", True, THEME["white"])
+            surface.blit(close_text, (close_btn.centerx - close_text.get_width() // 2,
+                                     close_btn.centery - close_text.get_height() // 2))
+
+        # 上架输入框 - 精美设计，包含完整武器信息
+        if game.listing_input_active:
+            weapon = game.weapons[game.inventory_selection]
+
+            # 半透明遮罩
+            overlay = pygame.Surface((WIDTH, HEIGHT), pygame.SRCALPHA)
+            overlay.fill((0, 0, 0, 180))
+            surface.blit(overlay, (0, 0))
+
+            # 主对话框
+            dialog_width = 700
+            dialog_height = 550
+            dialog_rect = pygame.Rect(WIDTH // 2 - dialog_width // 2, HEIGHT // 2 - dialog_height // 2,
+                                      dialog_width, dialog_height)
+            draw_card_with_shadow(surface, dialog_rect, THEME["white"], THEME["primary"], 3, 20)
+
+            # 标题栏
+            title_bar_rect = pygame.Rect(dialog_rect.x, dialog_rect.y, dialog_width, 60)
+            draw_gradient_rect(surface, title_bar_rect, THEME["primary"], THEME["secondary"])
+
+            title_text = header_font.render("上架到市场", True, THEME["white"])
+            surface.blit(title_text, (dialog_rect.x + dialog_width // 2 - title_text.get_width() // 2,
+                                     dialog_rect.y + 18))
+
+            # 内容区域起始Y坐标
+            content_y = dialog_rect.y + 75
+
+            # 左侧：武器信息
+            left_x = dialog_rect.x + 30
+
+            # 武器名称
+            weapon_name = default_font.render(weapon['name'], True, THEME["dark"])
+            surface.blit(weapon_name, (left_x, content_y))
+
+            # 稀有度
+            rarity_names = {
+                Rarity.COMMON: "普通",
+                Rarity.RARE: "稀有",
+                Rarity.EPIC: "史诗",
+                Rarity.LEGENDARY: "传说"
+            }
+            rarity_colors = {
+                Rarity.COMMON: THEME["mid_gray"],
+                Rarity.RARE: THEME["info"],
+                Rarity.EPIC: PURPLE,
+                Rarity.LEGENDARY: GOLD
+            }
+            rarity_name = rarity_names.get(weapon['rarity'], "未知")
+            rarity_color = rarity_colors.get(weapon['rarity'], THEME["mid_gray"])
+
+            rarity_text = default_font.render(f"稀有度: {rarity_name}", True, rarity_color)
+            surface.blit(rarity_text, (left_x, content_y + 35))
+
+            # 武器类型
+            weapon_type = game.weapon_manager.detect_weapon_type(weapon.get('original_name', ''))
+            type_text = default_font.render(f"类型: {weapon_type}", True, THEME["dark"])
+            surface.blit(type_text, (left_x, content_y + 70))
+
+            # 伤害倍率
+            damage_text = default_font.render(f"伤害倍率: {weapon['damage_multiplier']:.1f}x", True, THEME["dark"])
+            surface.blit(damage_text, (left_x, content_y + 105))
+
+            # 磨损度信息
+            if weapon.get('wear') is not None:
+                from .utils import format_wear_value, get_condition_name
+                wear_str = format_wear_value(weapon['wear'])
+                condition_str = get_condition_name(weapon['wear'])
+
+                wear_text = default_font.render(f"磨损度: {wear_str}", True, THEME["dark"])
+                surface.blit(wear_text, (left_x, content_y + 140))
+
+                condition_text = default_font.render(f"品相: {condition_str}", True, THEME["info"])
+                surface.blit(condition_text, (left_x, content_y + 175))
+
+                # 磨损度进度条
+                wear_bar_rect = pygame.Rect(left_x, content_y + 210, 280, 20)
+                pygame.draw.rect(surface, THEME["background"], wear_bar_rect, border_radius=10)
+                wear_percent = weapon['wear']
+                if wear_percent > 0:
+                    fill_width = int(wear_bar_rect.width * wear_percent)
+                    fill_rect = pygame.Rect(wear_bar_rect.x, wear_bar_rect.y, fill_width, wear_bar_rect.height)
+                    # 磨损度颜色：绿色到红色渐变
+                    if wear_percent < 0.07:
+                        bar_color = (76, 175, 80)  # 绿色 S级
+                    elif wear_percent < 0.15:
+                        bar_color = (139, 195, 74)  # 浅绿 A级
+                    elif wear_percent < 0.38:
+                        bar_color = (255, 193, 7)  # 黄色 B级
+                    elif wear_percent < 0.45:
+                        bar_color = (255, 152, 0)  # 橙色 C级
+                    else:
+                        bar_color = (244, 67, 54)  # 红色 D/E级
+                    pygame.draw.rect(surface, bar_color, fill_rect, border_radius=10)
+                pygame.draw.rect(surface, THEME["mid_gray"], wear_bar_rect, 2, border_radius=10)
+
+            # 右侧：武器贴图
+            weapon_sprite = game.weapon_manager.get_weapon_sprite(weapon)
+            if weapon_sprite:
+                # 放大显示
+                scale = 3.5
+                scaled_sprite = pygame.transform.scale(
+                    weapon_sprite,
+                    (int(weapon_sprite.get_width() * scale), int(weapon_sprite.get_height() * scale))
+                )
+                sprite_x = dialog_rect.x + dialog_width - scaled_sprite.get_width() - 50
+                sprite_y = content_y + 60
+
+                # 武器背景框
+                sprite_bg_rect = pygame.Rect(sprite_x - 20, sprite_y - 20,
+                                             scaled_sprite.get_width() + 40,
+                                             scaled_sprite.get_height() + 40)
+                pygame.draw.rect(surface, THEME["background"], sprite_bg_rect, border_radius=12)
+                pygame.draw.rect(surface, rarity_color, sprite_bg_rect, 3, border_radius=12)
+
+                surface.blit(scaled_sprite, (sprite_x, sprite_y))
+
+            # 推荐价格区域
+            recommend_y = content_y + 250
+            recommend_rect = pygame.Rect(dialog_rect.x + 30, recommend_y, dialog_width - 60, 80)
+            pygame.draw.rect(surface, (240, 248, 255), recommend_rect, border_radius=10)
+            pygame.draw.rect(surface, THEME["info"], recommend_rect, 2, border_radius=10)
+
+            if game.listing_suggested_price is not None:
+                # 有推荐价格
+                recommend_title = small_font.render("💡 市场推荐价格", True, THEME["info"])
+                surface.blit(recommend_title, (recommend_rect.x + 15, recommend_y + 12))
+
+                price_text = header_font.render(f"{game.listing_suggested_price:.4f} ETH",
+                                               True, THEME["success"])
+                surface.blit(price_text, (recommend_rect.x + 15, recommend_y + 38))
+
+                hint_text = small_font.render("(基于市场最低价 -0.1 ETH)", True, THEME["mid_gray"])
+                surface.blit(hint_text, (recommend_rect.x + recommend_rect.width - hint_text.get_width() - 15,
+                                        recommend_y + 45))
+            else:
+                # 无推荐价格
+                no_market_text = default_font.render("市场暂无当前物品", True, THEME["warning"])
+                surface.blit(no_market_text,
+                           (recommend_rect.centerx - no_market_text.get_width() // 2,
+                            recommend_rect.centery - no_market_text.get_height() // 2))
+
+            # 价格输入框
+            input_y = recommend_y + 100
+            input_label = default_font.render("设定价格 (ETH):", True, THEME["dark"])
+            surface.blit(input_label, (dialog_rect.x + 30, input_y))
+
+            input_rect = pygame.Rect(dialog_rect.x + 30, input_y + 35, dialog_width - 60, 50)
+            pygame.draw.rect(surface, THEME["white"], input_rect, border_radius=10)
+            pygame.draw.rect(surface, THEME["primary"], input_rect, 3, border_radius=10)
+
+            # 输入文本
+            display_text = game.listing_input_text if game.listing_input_text else "0.00"
+            input_text = header_font.render(f"{display_text}_", True, THEME["primary"])
+            surface.blit(input_text, (input_rect.x + 20, input_rect.y + 12))
+
+            # 底部提示
+            hint_y = dialog_rect.y + dialog_height - 45
+            hint_texts = [
+                ("回车", "确认上架"),
+                ("ESC", "取消"),
+            ]
+
+            hint_x = dialog_rect.x + 30
+            for key, action in hint_texts:
+                key_bg = pygame.Rect(hint_x, hint_y, 60, 30)
+                pygame.draw.rect(surface, THEME["mid_gray"], key_bg, border_radius=5)
+
+                key_text = small_font.render(key, True, THEME["white"])
+                surface.blit(key_text, (hint_x + 30 - key_text.get_width() // 2, hint_y + 8))
+
+                action_text = small_font.render(action, True, THEME["dark"])
+                surface.blit(action_text, (hint_x + 70, hint_y + 8))
+
+                hint_x += 150
 
         # 反馈信息
         if game.inventory_feedback:
@@ -602,6 +929,178 @@ class UIRenderer:
             pygame.draw.rect(surface, THEME["light_gray"], refresh_rect, border_radius=8)
             surface.blit(refresh_surf, (refresh_rect.x + 15, refresh_rect.y + 8))
 
+        # 购买确认窗口 - 精美设计，包含完整武器信息
+        if game.purchase_confirm_active and game.purchase_weapon_data:
+            weapon = game.purchase_weapon_data
+
+            # 半透明遮罩
+            overlay = pygame.Surface((WIDTH, HEIGHT), pygame.SRCALPHA)
+            overlay.fill((0, 0, 0, 180))
+            surface.blit(overlay, (0, 0))
+
+            # 主对话框
+            dialog_width = 700
+            dialog_height = 550
+            dialog_rect = pygame.Rect(WIDTH // 2 - dialog_width // 2, HEIGHT // 2 - dialog_height // 2,
+                                      dialog_width, dialog_height)
+            draw_card_with_shadow(surface, dialog_rect, THEME["white"], THEME["secondary"], 3, 20)
+
+            # 标题栏
+            title_bar_rect = pygame.Rect(dialog_rect.x, dialog_rect.y, dialog_width, 60)
+            draw_gradient_rect(surface, title_bar_rect, THEME["secondary"], THEME["primary"])
+
+            title_text = header_font.render("确认购买", True, THEME["white"])
+            surface.blit(title_text, (dialog_rect.x + dialog_width // 2 - title_text.get_width() // 2,
+                                     dialog_rect.y + 18))
+
+            # 内容区域起始Y坐标
+            content_y = dialog_rect.y + 75
+
+            # 左侧：武器信息
+            left_x = dialog_rect.x + 30
+
+            # 武器名称
+            weapon_name = default_font.render(weapon['name'], True, THEME["dark"])
+            surface.blit(weapon_name, (left_x, content_y))
+
+            # 稀有度
+            rarity_names = {
+                Rarity.COMMON: "普通",
+                Rarity.RARE: "稀有",
+                Rarity.EPIC: "史诗",
+                Rarity.LEGENDARY: "传说"
+            }
+            rarity_colors = {
+                Rarity.COMMON: THEME["mid_gray"],
+                Rarity.RARE: THEME["info"],
+                Rarity.EPIC: PURPLE,
+                Rarity.LEGENDARY: GOLD
+            }
+            rarity_name = rarity_names.get(weapon['rarity'], "未知")
+            rarity_color = rarity_colors.get(weapon['rarity'], THEME["mid_gray"])
+
+            rarity_text = default_font.render(f"稀有度: {rarity_name}", True, rarity_color)
+            surface.blit(rarity_text, (left_x, content_y + 35))
+
+            # 武器类型
+            weapon_type = game.weapon_manager.detect_weapon_type(weapon.get('original_name', ''))
+            type_text = default_font.render(f"类型: {weapon_type}", True, THEME["dark"])
+            surface.blit(type_text, (left_x, content_y + 70))
+
+            # 伤害倍率
+            damage_text = default_font.render(f"伤害倍率: {weapon['damage_multiplier']:.1f}x", True, THEME["dark"])
+            surface.blit(damage_text, (left_x, content_y + 105))
+
+            # 磨损度信息
+            if weapon.get('wear') is not None:
+                from .utils import format_wear_value, get_condition_name
+                wear_str = format_wear_value(weapon['wear'])
+                condition_str = get_condition_name(weapon['wear'])
+
+                wear_text = default_font.render(f"磨损度: {wear_str}", True, THEME["dark"])
+                surface.blit(wear_text, (left_x, content_y + 140))
+
+                condition_text = default_font.render(f"品相: {condition_str}", True, THEME["info"])
+                surface.blit(condition_text, (left_x, content_y + 175))
+
+                # 磨损度进度条
+                wear_bar_rect = pygame.Rect(left_x, content_y + 210, 280, 20)
+                pygame.draw.rect(surface, THEME["background"], wear_bar_rect, border_radius=10)
+                wear_percent = weapon['wear']
+                if wear_percent > 0:
+                    fill_width = int(wear_bar_rect.width * wear_percent)
+                    fill_rect = pygame.Rect(wear_bar_rect.x, wear_bar_rect.y, fill_width, wear_bar_rect.height)
+                    # 磨损度颜色：绿色到红色渐变
+                    if wear_percent < 0.07:
+                        bar_color = (76, 175, 80)  # 绿色 S级
+                    elif wear_percent < 0.15:
+                        bar_color = (139, 195, 74)  # 浅绿 A级
+                    elif wear_percent < 0.38:
+                        bar_color = (255, 193, 7)  # 黄色 B级
+                    elif wear_percent < 0.45:
+                        bar_color = (255, 152, 0)  # 橙色 C级
+                    else:
+                        bar_color = (244, 67, 54)  # 红色 D/E级
+                    pygame.draw.rect(surface, bar_color, fill_rect, border_radius=10)
+                pygame.draw.rect(surface, THEME["mid_gray"], wear_bar_rect, 2, border_radius=10)
+
+            # 右侧：武器贴图
+            weapon_sprite = game.weapon_manager.get_weapon_sprite(weapon)
+            if weapon_sprite:
+                # 放大显示
+                scale = 3.5
+                scaled_sprite = pygame.transform.scale(
+                    weapon_sprite,
+                    (int(weapon_sprite.get_width() * scale), int(weapon_sprite.get_height() * scale))
+                )
+                sprite_x = dialog_rect.x + dialog_width - scaled_sprite.get_width() - 50
+                sprite_y = content_y + 60
+
+                # 武器背景框
+                sprite_bg_rect = pygame.Rect(sprite_x - 20, sprite_y - 20,
+                                             scaled_sprite.get_width() + 40,
+                                             scaled_sprite.get_height() + 40)
+                pygame.draw.rect(surface, THEME["background"], sprite_bg_rect, border_radius=12)
+                pygame.draw.rect(surface, rarity_color, sprite_bg_rect, 3, border_radius=12)
+
+                surface.blit(scaled_sprite, (sprite_x, sprite_y))
+
+            # 卖家信息
+            seller_y = content_y + 250
+            seller_text = small_font.render(f"卖家: {weapon['owner'][:20]}...", True, THEME["mid_gray"])
+            surface.blit(seller_text, (left_x, seller_y))
+
+            # 价格信息区域
+            price_y = content_y + 290
+            price_rect = pygame.Rect(dialog_rect.x + 30, price_y, dialog_width - 60, 80)
+            pygame.draw.rect(surface, (240, 248, 255), price_rect, border_radius=10)
+            pygame.draw.rect(surface, THEME["secondary"], price_rect, 2, border_radius=10)
+
+            price_label = default_font.render("购买价格", True, THEME["text"])
+            surface.blit(price_label, (price_rect.x + 20, price_y + 15))
+
+            # 显示价格
+            if weapon.get('coin_price', 0) > 0:
+                price_value = f"{weapon['coin_price']} 金币"
+                price_color = THEME["accent"]
+
+                # 显示你的金币余额
+                balance_text = small_font.render(f"你的金币: {game.coins}", True, THEME["mid_gray"])
+                surface.blit(balance_text, (price_rect.x + 20, price_y + 55))
+            else:
+                eth_price = game.blockchain_manager.w3.from_wei(weapon['price'], 'ether')
+                price_value = f"{eth_price:.4f} ETH"
+                price_color = THEME["primary"]
+
+            price_surf = header_font.render(price_value, True, price_color)
+            surface.blit(price_surf, (price_rect.right - price_surf.get_width() - 20, price_y + 15))
+
+            # 按钮区域
+            button_y = dialog_rect.bottom - 80
+            button_width = 150
+            button_height = 45
+            button_spacing = 30
+
+            # 确认按钮
+            confirm_btn = pygame.Rect(dialog_rect.centerx - button_width - button_spacing // 2,
+                                     button_y, button_width, button_height)
+            pygame.draw.rect(surface, THEME["success"], confirm_btn, border_radius=10)
+            pygame.draw.rect(surface, THEME["white"], confirm_btn, 2, border_radius=10)
+
+            confirm_text = default_font.render("确认 (Enter/Y)", True, THEME["white"])
+            surface.blit(confirm_text, (confirm_btn.centerx - confirm_text.get_width() // 2,
+                                       confirm_btn.centery - confirm_text.get_height() // 2))
+
+            # 取消按钮
+            cancel_btn = pygame.Rect(dialog_rect.centerx + button_spacing // 2,
+                                    button_y, button_width, button_height)
+            pygame.draw.rect(surface, THEME["mid_gray"], cancel_btn, border_radius=10)
+            pygame.draw.rect(surface, THEME["white"], cancel_btn, 2, border_radius=10)
+
+            cancel_text = default_font.render("取消 (ESC/N)", True, THEME["white"])
+            surface.blit(cancel_text, (cancel_btn.centerx - cancel_text.get_width() // 2,
+                                      cancel_btn.centery - cancel_text.get_height() // 2))
+
     @staticmethod
     def draw_start_menu(surface, game, selection):
         """绘制开始菜单 - 现代欢迎页面"""
@@ -620,8 +1119,13 @@ class UIRenderer:
         subtitle = header_font.render("Blockchain Weed Cutter", True, THEME["mid_gray"])
         surface.blit(subtitle, (WIDTH // 2 - subtitle.get_width() // 2, title_y + 60))
 
+        # 欢迎当前用户
+        if hasattr(game, 'user_manager') and game.user_manager.current_user:
+            welcome_text = default_font.render(f"欢迎, {game.user_manager.current_user}!", True, THEME["success"])
+            surface.blit(welcome_text, (WIDTH // 2 - welcome_text.get_width() // 2, title_y + 95))
+
         # 装饰线
-        line_y = title_y + 110
+        line_y = title_y + 130
         pygame.draw.line(surface, THEME["primary_light"],
                         (WIDTH // 2 - 100, line_y),
                         (WIDTH // 2 + 100, line_y), 3)
@@ -631,11 +1135,12 @@ class UIRenderer:
             ("个人中心", "查看你的资料和成就", THEME["primary"]),
             ("开始游戏", "进入游戏世界", THEME["secondary"]),
             ("排行榜", "查看全球玩家排名", THEME["accent"]),
-            ("切换账户", "选择其他账户进行游戏", THEME["dark_gray"])
+            ("好友系统", "添加好友并进行交易", THEME["success"]),
+            ("退出登录", "返回登录界面", THEME["dark_gray"])
         ]
-        start_y = 260
-        button_height = 70
-        button_spacing = 20
+        start_y = 240
+        button_height = 65
+        button_spacing = 15
 
         for idx, (text, desc, color) in enumerate(menu_items):
             y = start_y + idx * (button_height + button_spacing)
