@@ -252,108 +252,24 @@ class BlockchainGame:
         self.current_weapon_thickness = int(max(6, base_thickness + rarity_bonus))
     
     def load_player_data(self):
-        """加载玩家数据"""
+        """加载玩家数据（完全基于区块链）"""
         if not self.blockchain_manager.blockchain_available:
+            print("⚠️ 区块链未连接，无法加载玩家数据")
             self.score = 0
             self.coins = 0
             self.weapons = []
             self.listed_weapons = []
-
-            # 在离线模式下，从用户管理器加载本地武器
-            if self.user_manager.current_user:
-                current_user_data = self.user_manager.users.get(self.user_manager.current_user, {})
-                local_weapons = current_user_data.get('local_weapons', {})
-
-                # 转换本地武器数据为游戏武器格式
-                from .enums import Rarity
-                for weapon_id_str, weapon_info in local_weapons.items():
-                    try:
-                        # 转换稀有度
-                        rarity_str = weapon_info.get('rarity', 'COMMON')
-                        if isinstance(rarity_str, str):
-                            rarity = Rarity[rarity_str]
-                        else:
-                            rarity = Rarity.COMMON
-
-                        weapon = {
-                            'id': int(weapon_id_str),
-                            'name': weapon_info.get('name', f'Weapon #{weapon_id_str}'),
-                            'original_name': weapon_info.get('original_name', weapon_info.get('name', '')),
-                            'rarity': rarity,
-                            'damage_multiplier': weapon_info.get('damage_multiplier', 1.0),
-                            'owner': self.blockchain_manager.account,
-                            'price': weapon_info.get('price', 0),
-                            'for_sale': weapon_info.get('for_sale', False),
-                            'wear': weapon_info.get('wear', 0.0),
-                            'condition': weapon_info.get('condition', 'Factory New')
-                        }
-
-                        if weapon['for_sale']:
-                            self.listed_weapons.append(weapon)
-                        else:
-                            self.weapons.append(weapon)
-                    except Exception as e:
-                        print(f"⚠️ 加载本地武器 {weapon_id_str} 失败: {e}")
-
-                print(f"📦 从本地存储加载了 {len(self.weapons)} 把武器")
-
             self.update_weapon_profile(None)
             return
         
+        # 从区块链加载所有数据
         self.score, self.coins = self.blockchain_manager.load_player_stats(self.blockchain_manager.account)
         self.weapons, self.listed_weapons = self.blockchain_manager.load_player_weapons(
             self.blockchain_manager.account,
             self.weapon_manager.get_weapon_display_name
         )
         
-        # 在在线模式下，也合并本地武器（好友交易获得的）
-        if self.user_manager.current_user:
-            current_user_data = self.user_manager.users.get(self.user_manager.current_user, {})
-            local_weapons = current_user_data.get('local_weapons', {})
-
-            if local_weapons:
-                from .enums import Rarity
-                local_count = 0
-                for weapon_id_str, weapon_info in local_weapons.items():
-                    weapon_id = int(weapon_id_str)
-
-                    # 检查是否已经从区块链加载（避免重复）
-                    if any(w['id'] == weapon_id for w in self.weapons + self.listed_weapons):
-                        continue
-
-                    try:
-                        # 转换稀有度
-                        rarity_str = weapon_info.get('rarity', 'COMMON')
-                        if isinstance(rarity_str, str):
-                            rarity = Rarity[rarity_str]
-                        else:
-                            rarity = Rarity.COMMON
-
-                        weapon = {
-                            'id': weapon_id,
-                            'name': weapon_info.get('name', f'Weapon #{weapon_id}'),
-                            'original_name': weapon_info.get('original_name', weapon_info.get('name', '')),
-                            'rarity': rarity,
-                            'damage_multiplier': weapon_info.get('damage_multiplier', 1.0),
-                            'owner': self.blockchain_manager.account,
-                            'price': weapon_info.get('price', 0),
-                            'for_sale': weapon_info.get('for_sale', False),
-                            'wear': weapon_info.get('wear', 0.0),
-                            'condition': weapon_info.get('condition', 'Factory New')
-                        }
-
-                        if weapon['for_sale']:
-                            self.listed_weapons.append(weapon)
-                        else:
-                            self.weapons.append(weapon)
-
-                        local_count += 1
-                    except Exception as e:
-                        print(f"⚠️ 合并本地武器 {weapon_id_str} 失败: {e}")
-
-                if local_count > 0:
-                    print(f"🔗 从本地存储合并了 {local_count} 把好友交易的武器")
-
+        # 更新武器配置
         if self.weapons:
             self.current_weapon_index = min(self.current_weapon_index, len(self.weapons) - 1)
         else:
@@ -368,6 +284,7 @@ class BlockchainGame:
         self.all_accounts = self.blockchain_manager.get_all_accounts()
         self.account_selection = self.blockchain_manager.account_index
 
+        print("✅ 游戏数据加载完成")
     def load_market_weapons(self):
         """加载市场武器"""
         self.market_weapons = self.blockchain_manager.load_market_weapons(
@@ -1245,7 +1162,13 @@ class BlockchainGame:
 
                 if success:
                     print(f"✅ {message}")
-                    # 登录成功，加载游戏数据
+                    # 登录成功，更新区块链账户地址
+                    current_user_data = self.user_manager.users.get(self.user_manager.current_user, {})
+                    wallet_address = current_user_data.get('wallet_address')
+                    if wallet_address:
+                        self.blockchain_manager.account = wallet_address
+                        print(f"🔗 切换到用户钱包: {wallet_address[:10]}...")
+                    # 加载游戏数据
                     print("🔄 正在加载游戏数据...")
                     self.load_player_data()
                     self.generate_grass()
@@ -1291,7 +1214,13 @@ class BlockchainGame:
 
                 if success:
                     print(f"✅ {message}")
-                    # 登录成功，加载游戏数据
+                    # 登录成功，更新区块链账户地址
+                    current_user_data = self.user_manager.users.get(self.user_manager.current_user, {})
+                    wallet_address = current_user_data.get('wallet_address')
+                    if wallet_address:
+                        self.blockchain_manager.account = wallet_address
+                        print(f"🔗 切换到用户钱包: {wallet_address[:10]}...")
+                    # 加载游戏数据
                     print("🔄 正在加载游戏数据...")
                     self.load_player_data()
                     self.generate_grass()
@@ -1906,132 +1835,113 @@ class BlockchainGame:
         print(f"   到: {to_address[:10]}... ({current_user})")
         print(f"   价格: {price_eth} ETH")
 
-        # 查找武器数据（在当前加载的武器列表中或所有武器中）
-        weapon_data = None
-        for w in self.weapons + self.listed_weapons:
-            if w['id'] == weapon_id:
-                # 处理 condition，可能是枚举或字符串
-                condition_value = w.get('condition', 'Factory New')
-                if condition_value is not None:
-                    if hasattr(condition_value, 'name'):  # 如果是枚举
-                        condition_str = condition_value.name
-                    elif hasattr(condition_value, 'value'):  # 如果是枚举值
-                        condition_str = str(condition_value.value)
-                    else:
-                        condition_str = str(condition_value)
-                else:
-                    condition_str = 'Factory New'
+    def _reject_trade_request(self):
+        """拒绝交易请求"""
+        if not self.trade_request_detail:
+            return
 
-                weapon_data = {
-                    'id': w['id'],
-                    'name': w['name'],
-                    'original_name': w.get('original_name', w['name']),
-                    'rarity': w['rarity'].name if hasattr(w['rarity'], 'name') else str(w['rarity']),
-                    'damage_multiplier': w['damage_multiplier'],
-                    'wear': w.get('wear', 0.0),
-                    'condition': condition_str,
-                    'for_sale': False,  # 交易后不再上架
-                    'price': 0
-                }
-                print(f"✅ 找到武器数据: {weapon_data['name']}")
-                break
+        trade = self.trade_request_detail
+        self.user_manager.reject_trade_request(trade['trade_id'])
+        self.trade_state = None
+        self.trade_request_detail = None
 
-        if not weapon_data:
-            print(f"⚠️ 未找到武器 ID {weapon_id} 的完整数据，使用基本信息")
-            # 创建基本武器数据
-            weapon_data = {
-                'id': weapon_id,
-                'name': f'Weapon #{weapon_id}',
-                'original_name': f'Weapon #{weapon_id}',
-                'rarity': 'COMMON',
-                'damage_multiplier': 1.0,
-                'wear': 0.0,
-                'condition': 'Factory New',
-                'for_sale': False,
-                'price': 0
-            }
+    def _accept_trade_request(self):
+        """接受好友交易请求（完全使用区块链 P2P 交易）"""
+        if not self.trade_request_detail:
+            return
 
-        # 好友交易：使用新的区块链 P2P 报价系统
-        # 不再需要武器上架，直接通过智能合约的 acceptTradeOffer 完成交易
+        trade = self.trade_request_detail
 
-        if self.blockchain_manager.blockchain_available:
-            print("🔗 使用区块链 P2P 交易系统...")
+        # 验证必要数据
+        if not self.user_manager.current_user:
+            print("❌ 未登录")
+            return
 
-            try:
-                price_wei = self.blockchain_manager.w3.to_wei(price_eth, 'ether')
+        if not self.blockchain_manager.blockchain_available:
+            print("❌ 区块链未连接，无法进行交易")
+            self.user_manager.reject_trade_request(trade['trade_id'])
+            self.trade_state = None
+            self.trade_request_detail = None
+            return
 
-                # 查找对应的链上报价ID
-                print(f"🔍 查询收到的报价...")
-                print(f"   接受者地址: {to_address}")
-                received_offers = self.blockchain_manager.get_user_received_active_offers(to_address)
-                print(f"   找到 {len(received_offers)} 个报价")
+        from_username = trade['from_user']
+        weapon_id = trade['weapon_id']
+        price_eth = trade['price_eth']
 
-                # 调试：打印所有报价
-                for i, offer in enumerate(received_offers):
-                    print(f"   报价 {i+1}:")
-                    print(f"     - offerId: {offer['offerId']}")
-                    print(f"     - weaponId: {offer['weaponId']}")
-                    print(f"     - seller: {offer['seller'][:10]}...")
-                    print(f"     - buyer: {offer['buyer'][:10]}...")
-                    print(f"     - price: {self.blockchain_manager.w3.from_wei(offer['price'], 'ether')} ETH")
+        # 获取发起者的钱包地址
+        from_user_data = self.user_manager.users.get(from_username)
+        if not from_user_data:
+            print(f"❌ 找不到用户 {from_username}")
+            return
 
-                matching_offer = None
-                for offer in received_offers:
-                    print(f"🔍 检查报价 {offer['offerId']}:")
-                    print(f"   weaponId 匹配: {offer['weaponId']} == {weapon_id} ? {offer['weaponId'] == weapon_id}")
-                    print(f"   seller 匹配: {offer['seller'][:10]}... == {from_address[:10]}... ? {offer['seller'].lower() == from_address.lower()}")
+        from_address = from_user_data.get('wallet_address')
+        to_address = self.blockchain_manager.account
 
-                    if offer['weaponId'] == weapon_id and offer['seller'].lower() == from_address.lower():
-                        matching_offer = offer
-                        break
+        if not from_address or not to_address:
+            print("❌ 钱包地址无效")
+            return
 
-                if matching_offer:
-                    offer_id = matching_offer['offerId']
-                    print(f"✅ 找到链上报价 ID: {offer_id}")
-                    print(f"💰 发起交易...")
-                    print(f"   价格: {price_eth} ETH ({price_wei} Wei)")
+        print("🔗 执行区块链 P2P 交易...")
+        print(f"   武器 ID: {weapon_id}")
+        print(f"   从: {from_address[:10]}...")
+        print(f"   到: {to_address[:10]}...")
+        print(f"   价格: {price_eth} ETH")
 
-                    # 接受区块链报价
-                    if self.blockchain_manager.accept_trade_offer(to_address, offer_id, price_wei):
-                        print("✅ 区块链交易成功！")
-                        print(f"   ✓ 武器 #{weapon_id} 已转移到 {to_address[:10]}...")
-                        print(f"   ✓ {price_eth} ETH 已支付给 {from_address[:10]}...")
+        try:
+            price_wei = self.blockchain_manager.w3.to_wei(price_eth, 'ether')
 
-                        # 标记本地交易为已完成
-                        success, msg = self.user_manager.complete_trade(trade['trade_id'], weapon_data)
-                        if success:
-                            print(f"✅ {msg}")
+            # 查找对应的链上报价ID
+            received_offers = self.blockchain_manager.get_user_received_active_offers(to_address)
+            print(f"🔍 找到 {len(received_offers)} 个收到的报价")
 
-                        # 刷新数据（从区块链重新加载）
-                        self.load_player_data()
+            matching_offer = None
+            for offer in received_offers:
+                if offer['weaponId'] == weapon_id and offer['seller'].lower() == from_address.lower():
+                    matching_offer = offer
+                    break
 
-                        self.trade_state = None
-                        self.trade_request_detail = None
-                        print("🎉 好友交易完成！")
-                        return
-                    else:
-                        print("❌ 区块链交易失败")
-                        print("💡 回退到本地模式...")
-                else:
-                    print("⚠️ 未找到对应的链上报价")
-                    print("💡 可能报价未在链上创建，使用本地模式...")
+            if not matching_offer:
+                print("❌ 未找到对应的链上报价")
+                print("💡 发起者可能未正确创建报价，或报价已被撤销")
+                self.user_manager.reject_trade_request(trade['trade_id'])
+                self.trade_state = None
+                self.trade_request_detail = None
+                return
 
-            except Exception as e:
-                print(f"❌ 区块链交易异常: {e}")
-                print("💡 回退到本地模式...")
+            offer_id = matching_offer['offerId']
+            print(f"✅ 找到链上报价 ID: {offer_id}")
 
-        # 本地模式或区块链失败后的降级处理
-        print("⚠️ 使用本地模式处理交易")
+            # 接受区块链报价（通过智能合约转移 NFT）
+            if self.blockchain_manager.accept_trade_offer(to_address, offer_id, price_wei):
+                print("✅ 区块链交易成功！")
+                print(f"   ✓ NFT 武器 #{weapon_id} 已转移到 {to_address[:10]}...")
+                print(f"   ✓ {price_eth} ETH 已支付给 {from_address[:10]}...")
 
-        # 标记交易为已完成并转移武器
-        success, msg = self.user_manager.complete_trade(trade['trade_id'], weapon_data)
+                # 标记本地交易请求为已完成
+                success, msg = self.user_manager.accept_trade_request(trade['trade_id'])
+                if success:
+                    print(f"✅ {msg}")
 
-        if success:
-            print(f"✅ {msg}")
-        else:
-            print(f"❌ {msg}")
+                # 从区块链重新加载玩家数据
+                self.load_player_data()
 
-        # 刷新数据
+                self.trade_state = None
+                self.trade_request_detail = None
+                print("🎉 好友交易完成！")
+                print("   武器所有权已在区块链上永久记录")
+            else:
+                print("❌ 区块链交易失败")
+                self.user_manager.reject_trade_request(trade['trade_id'])
+                self.trade_state = None
+                self.trade_request_detail = None
+
+        except Exception as e:
+            print(f"❌ 区块链交易异常: {e}")
+            traceback.print_exc()
+            self.user_manager.reject_trade_request(trade['trade_id'])
+            self.trade_state = None
+            self.trade_request_detail = None
+
         self.load_player_data()
 
         # 返回好友列表

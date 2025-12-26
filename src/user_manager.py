@@ -420,140 +420,36 @@ class UserManager:
         current_data = self.users[self.current_user]
         return current_data.get('trade_requests', [])
     
-    def accept_trade_request(self, trade_id: str) -> Tuple[bool, str, Optional[Dict]]:
-        """
-        接受交易请求
-        返回: (成功, 消息, 交易数据)
-        """
-        if not self.current_user:
-            return False, "请先登录", None
-        
-        current_data = self.users[self.current_user]
-        trade_requests = current_data.get('trade_requests', [])
-        
-        # 查找交易请求
-        trade_request = None
-        for req in trade_requests:
-            if req['trade_id'] == trade_id:
-                trade_request = req
-                break
-        
-        if not trade_request:
-            return False, "交易请求不存在", None
-        
-        if trade_request['status'] != 'pending':
-            return False, "交易请求已处理", None
-        
-        # 验证加密签名（解密）
-        try:
-            if trade_request.get('encrypted_signature'):
-                private_key_pem = current_data['private_key']
-                private_key = serialization.load_pem_private_key(
-                    private_key_pem.encode('utf-8'),
-                    password=None,
-                    backend=default_backend()
-                )
-                
-                encrypted_sig = bytes.fromhex(trade_request['encrypted_signature'])
-                decrypted_trade_id = private_key.decrypt(
-                    encrypted_sig,
-                    padding.OAEP(
-                        mgf=padding.MGF1(algorithm=hashes.SHA256()),
-                        algorithm=hashes.SHA256(),
-                        label=None
-                    )
-                ).decode('utf-8')
-                
-                if decrypted_trade_id != trade_id:
-                    return False, "交易签名验证失败", None
-                
-                print("✅ 交易签名验证成功（RSA解密）")
-        except Exception as e:
-            print(f"⚠️ 交易签名验证失败: {e}")
-        
-        # 标记为已接受
-        trade_request['status'] = 'accepted'
-        self.save_data()
-        
-        return True, "交易请求已接受，等待区块链确认", trade_request
-    
-    def reject_trade_request(self, trade_id: str) -> Tuple[bool, str]:
-        """拒绝交易请求"""
-        if not self.current_user:
-            return False, "请先登录"
-        
-        current_data = self.users[self.current_user]
-        trade_requests = current_data.get('trade_requests', [])
-        
-        for req in trade_requests:
-            if req['trade_id'] == trade_id:
-                req['status'] = 'rejected'
-                self.save_data()
-                return True, "已拒绝交易请求"
-        
-        return False, "交易请求不存在"
-    
-    def complete_trade(self, trade_id: str, weapon_data: dict = None) -> Tuple[bool, str]:
-        """
-        标记交易为已完成并执行武器转移
-        将武器从发起者转移到接受者（当前用户）
 
-        参数:
-            trade_id: 交易ID
-            weapon_data: 武器数据字典（用于本地存储）
-        """
+    def accept_trade_request(self, trade_id: str) -> Tuple[bool, str]:
+        """接受交易请求（不再处理本地武器转移，由区块链处理）"""
         if not self.current_user:
-            return False, "请先登录"
-        
-        current_data = self.users[self.current_user]
+            return False, "未登录"
+
+        current_data = self.users.get(self.current_user, {})
         trade_requests = current_data.get('trade_requests', [])
-        
+
         # 查找交易请求
         trade_req = None
         for req in trade_requests:
-            if req['trade_id'] == trade_id:
+            if req.get('trade_id') == trade_id:
                 trade_req = req
                 break
 
         if not trade_req:
-            return False, "交易请求不存在"
+            return False, "找不到交易请求"
+
+        if trade_req.get('status') == 'completed':
+            return False, "交易已完成"
 
         # 标记为已完成
         trade_req['status'] = 'completed'
 
-        # 执行武器转移
         from_user = trade_req['from_user']
-        to_user = self.current_user  # 接受者是当前用户
+        to_user = self.current_user
         weapon_id = trade_req['weapon_id']
 
-        print(f"🔄 执行本地武器转移: 武器 ID {weapon_id}")
-        print(f"   从 {from_user} -> 到 {to_user}")
-
-        # 在本地用户数据中记录武器所有权
-        # 初始化武器列表（如果不存在）
-        if 'local_weapons' not in current_data:
-            current_data['local_weapons'] = {}
-
-        if from_user in self.users:
-            from_user_data = self.users[from_user]
-            if 'local_weapons' not in from_user_data:
-                from_user_data['local_weapons'] = {}
-
-            # 从发起者移除武器
-            if str(weapon_id) in from_user_data['local_weapons']:
-                # 转移武器数据
-                weapon_info = from_user_data['local_weapons'].pop(str(weapon_id))
-                print(f"   ✅ 从 {from_user} 移除武器 {weapon_id}")
-
-                # 添加到接受者
-                current_data['local_weapons'][str(weapon_id)] = weapon_info
-                print(f"   ✅ 添加武器 {weapon_id} 到 {to_user}")
-            elif weapon_data:
-                # 如果发起者没有本地记录，但提供了武器数据，直接添加到接受者
-                current_data['local_weapons'][str(weapon_id)] = weapon_data
-                print(f"   ✅ 使用提供的武器数据添加到 {to_user}")
-
-        # 记录交易历史
+        # 只记录交易历史（武器转移由区块链智能合约处理）
         if 'trade_history' not in current_data:
             current_data['trade_history'] = []
 
@@ -584,8 +480,25 @@ class UserManager:
             })
 
         self.save_data()
-        print(f"✅ 武器转移完成并已保存")
-        return True, "交易已完成，武器所有权已转移"
+        return True, "交易请求已接受，NFT 所有权已在区块链上转移"
+
+    def reject_trade_request(self, trade_id: str) -> Tuple[bool, str]:
+        """拒绝交易请求"""
+        if not self.current_user:
+            return False, "未登录"
+
+        current_data = self.users.get(self.current_user, {})
+        trade_requests = current_data.get('trade_requests', [])
+
+        # 查找并移除交易请求
+        for i, req in enumerate(trade_requests):
+            if req.get('trade_id') == trade_id:
+                trade_requests.pop(i)
+                self.save_data()
+                return True, "交易请求已拒绝"
+
+        return False, "找不到交易请求"
+
 
     def search_users(self, query: str) -> List[Dict]:
         """搜索用户（用于添加好友）"""

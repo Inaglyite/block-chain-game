@@ -414,6 +414,8 @@ class TradeUIRenderer:
         # 获取武器信息
         weapon_id = trade_request['weapon_id']
         weapon = None
+
+        # 先在本地武器列表中查找
         for w in game.weapons:
             if w['id'] == weapon_id:
                 weapon = w
@@ -425,6 +427,46 @@ class TradeUIRenderer:
                 if w['id'] == weapon_id:
                     weapon = w
                     break
+
+        # 如果本地没有找到，从区块链直接查询
+        if not weapon and game.blockchain_manager.blockchain_available:
+            try:
+                weapon_data = game.blockchain_manager.contract.functions.getWeaponDetails(weapon_id).call()
+                if weapon_data and weapon_data[0] != 0:  # 验证武器存在
+                    from src.enums import Rarity, Condition
+
+                    # 解析磨损度和品相
+                    wear = None
+                    condition = None
+                    if len(weapon_data) > 7:
+                        try:
+                            wear_raw = weapon_data[7]
+                            if isinstance(wear_raw, int):
+                                wear = wear_raw / 1e10  # 转换为0-1的浮点数
+                        except:
+                            pass
+                    if len(weapon_data) > 8:
+                        try:
+                            condition = Condition(weapon_data[8])
+                        except:
+                            pass
+
+                    # 构建武器字典
+                    weapon = {
+                        'id': weapon_data[0],
+                        'name': game.weapon_manager.get_weapon_display_name(weapon_data[1], Rarity(weapon_data[2])),
+                        'original_name': weapon_data[1],
+                        'rarity': Rarity(weapon_data[2]),
+                        'damage_multiplier': weapon_data[3] / 100.0,
+                        'owner': weapon_data[4],
+                        'price': weapon_data[5],
+                        'for_sale': weapon_data[6],
+                        'wear': wear if wear is not None else 0.0,
+                        'condition': condition
+                    }
+                    print(f"✅ 从区块链加载武器信息: {weapon['name']} (ID: {weapon_id})")
+            except Exception as e:
+                print(f"⚠️ 从区块链查询武器 {weapon_id} 失败: {e}")
 
         if weapon:
             # 武器贴图

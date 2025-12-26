@@ -1,7 +1,19 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.28;
 
-contract WeedCutterNFT {
+// 简化的 ERC721 接口（核心功能）
+interface IERC721 {
+    event Transfer(address indexed from, address indexed to, uint256 indexed tokenId);
+    event Approval(address indexed owner, address indexed approved, uint256 indexed tokenId);
+
+    function balanceOf(address owner) external view returns (uint256 balance);
+    function ownerOf(uint256 tokenId) external view returns (address owner);
+    function transferFrom(address from, address to, uint256 tokenId) external;
+    function approve(address to, uint256 tokenId) external;
+    function getApproved(uint256 tokenId) external view returns (address operator);
+}
+
+contract WeedCutterNFT is IERC721 {
     // 磨损度枚举，扩展为六档：S A B C D E
     enum Condition { S, A, B, C, D, E }
 
@@ -41,6 +53,10 @@ contract WeedCutterNFT {
     mapping(address => uint256[]) public userWeapons;
     mapping(address => uint256) public scores;
     mapping(address => uint256) public coins;
+
+    // ERC721 必需的映射
+    mapping(uint256 => address) private _tokenApprovals;
+    mapping(address => uint256) private _balances;
 
     // 武器箱相关的映射
     mapping(uint256 => Case) public cases;
@@ -361,7 +377,10 @@ contract WeedCutterNFT {
         });
 
         userWeapons[to].push(newWeaponId);
+        _balances[to]++;  // ERC721: 增加余额
+
         emit WeaponMinted(to, newWeaponId, rarity, condition, wear);
+        emit Transfer(address(0), to, newWeaponId);  // ERC721: 铸造事件
 
         return newWeaponId;
     }
@@ -374,6 +393,10 @@ contract WeedCutterNFT {
 
         address previousOwner = weapon.owner;
         uint256 purchasePrice = weapon.price;
+
+        // 更新 ERC721 余额
+        _balances[previousOwner]--;
+        _balances[msg.sender]++;
 
         // 转移所有权
         weapon.owner = msg.sender;
@@ -388,6 +411,7 @@ contract WeedCutterNFT {
         payable(previousOwner).transfer(purchasePrice);
 
         emit WeaponSold(previousOwner, msg.sender, weaponId);
+        emit Transfer(previousOwner, msg.sender, weaponId);  // ERC721 事件
     }
 
     function listWeaponForSale(uint256 weaponId, uint256 price) public {
@@ -716,6 +740,10 @@ contract WeedCutterNFT {
         uint256 weaponId = offer.weaponId;
         uint256 paymentAmount = offer.price;
 
+        // 更新 ERC721 余额
+        _balances[previousOwner]--;
+        _balances[msg.sender]++;
+
         // 转移武器所有权
         weapon.owner = msg.sender;
         weapon.forSale = false;
@@ -737,6 +765,7 @@ contract WeedCutterNFT {
         offer.active = false;
 
         emit TradeOfferAccepted(offerId, weaponId, previousOwner, msg.sender, paymentAmount);
+        emit Transfer(previousOwner, msg.sender, weaponId);  // ERC721 事件
     }
 
     /**
@@ -829,5 +858,135 @@ contract WeedCutterNFT {
 
     // 接收以太币
     receive() external payable {}
-}
 
+    // ==================== ERC721 标准实现 ====================
+
+    /**
+     * @dev 返回某地址拥有的 NFT 数量
+     */
+    function balanceOf(address owner) external view override returns (uint256) {
+        require(owner != address(0), "ERC721: balance query for the zero address");
+        return _balances[owner];
+    }
+
+    /**
+     * @dev 返回某个 tokenId 的所有者
+     */
+    function ownerOf(uint256 tokenId) external view override returns (address) {
+        address tokenOwner = weapons[tokenId].owner;
+        require(tokenOwner != address(0), "ERC721: owner query for nonexistent token");
+        return tokenOwner;
+    }
+
+    /**
+     * @dev 转移 NFT（必须是所有者或被授权者）
+     */
+    function transferFrom(address from, address to, uint256 tokenId) external override {
+        require(_isApprovedOrOwner(msg.sender, tokenId), "ERC721: transfer caller is not owner nor approved");
+        require(weapons[tokenId].owner == from, "ERC721: transfer from incorrect owner");
+        require(to != address(0), "ERC721: transfer to the zero address");
+        require(!weapons[tokenId].forSale, "Cannot transfer weapon listed for sale");
+
+        // 清除授权
+        _approve(address(0), tokenId);
+
+        // 更新余额
+        _balances[from]--;
+        _balances[to]++;
+
+        // 更新武器所有者
+        weapons[tokenId].owner = to;
+
+        // 更新用户武器列表
+        _removeWeaponFromUser(from, tokenId);
+        userWeapons[to].push(tokenId);
+
+        emit Transfer(from, to, tokenId);
+    }
+
+    /**
+     * @dev 授权某地址可以操作某个 NFT
+     */
+    function approve(address to, uint256 tokenId) external override {
+        address tokenOwner = weapons[tokenId].owner;
+        require(to != tokenOwner, "ERC721: approval to current owner");
+        require(msg.sender == tokenOwner, "ERC721: approve caller is not owner");
+
+        _approve(to, tokenId);
+    }
+
+    /**
+     * @dev 获取某个 NFT 的被授权地址
+     */
+    function getApproved(uint256 tokenId) external view override returns (address) {
+        require(weapons[tokenId].owner != address(0), "ERC721: approved query for nonexistent token");
+        return _tokenApprovals[tokenId];
+    }
+
+    /**
+     * @dev 内部授权函数
+     */
+    function _approve(address to, uint256 tokenId) internal {
+        _tokenApprovals[tokenId] = to;
+        emit Approval(weapons[tokenId].owner, to, tokenId);
+    }
+
+    /**
+     * @dev 检查某地址是否有权操作某个 NFT
+     */
+    function _isApprovedOrOwner(address spender, uint256 tokenId) internal view returns (bool) {
+        address tokenOwner = weapons[tokenId].owner;
+        require(tokenOwner != address(0), "ERC721: operator query for nonexistent token");
+        return (spender == tokenOwner || _tokenApprovals[tokenId] == spender);
+    }
+
+    /**
+     * @dev 安全转移（带数据回调）- 简化版本
+     */
+    function safeTransferFrom(address from, address to, uint256 tokenId) external {
+        require(_isApprovedOrOwner(msg.sender, tokenId), "ERC721: transfer caller is not owner nor approved");
+        require(weapons[tokenId].owner == from, "ERC721: transfer from incorrect owner");
+        require(to != address(0), "ERC721: transfer to the zero address");
+        require(!weapons[tokenId].forSale, "Cannot transfer weapon listed for sale");
+
+        // 清除授权
+        _approve(address(0), tokenId);
+
+        // 更新余额
+        _balances[from]--;
+        _balances[to]++;
+
+        // 更新武器所有者
+        weapons[tokenId].owner = to;
+
+        // 更新用户武器列表
+        _removeWeaponFromUser(from, tokenId);
+        userWeapons[to].push(tokenId);
+
+        emit Transfer(from, to, tokenId);
+    }
+
+    /**
+     * @dev 销毁 NFT（仅所有者可以销毁自己的武器）
+     */
+    function burnWeapon(uint256 tokenId) external {
+        require(weapons[tokenId].owner == msg.sender, "Only owner can burn weapon");
+        require(!weapons[tokenId].forSale, "Cannot burn weapon listed for sale");
+
+        address tokenOwner = weapons[tokenId].owner;
+
+        // 清除授权
+        _approve(address(0), tokenId);
+
+        // 更新余额
+        _balances[tokenOwner]--;
+
+        // 从用户武器列表中移除
+        _removeWeaponFromUser(tokenOwner, tokenId);
+
+        // 删除武器数据
+        delete weapons[tokenId];
+
+        emit Transfer(tokenOwner, address(0), tokenId);
+    }
+}

@@ -1,20 +1,54 @@
-# Node modules
-/node_modules
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+.venv/
+venv/
+ENV/
+env/
+.pytest_cache/
+.coverage
+htmlcov/
 
-# Compilation output
-/dist
+# 用户数据
+user_data.json
+user_data.json.backup
+*.backup
 
-# pnpm deploy output
-/bundle
+# 区块链节点和日志
+hardhat-node.log
+compile.log
+node_modules/
 
-# Hardhat Build Artifacts
-/artifacts
+# 智能合约编译产物
+artifacts/
+cache/
+contract-info.json
+scripts/contract-info.json
+WeedCutterNFT.json
+scripts/WeedCutterNFT.json
 
-# Hardhat compilation (v2) support directory
-/cache
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
 
-# Typechain output
-/types
+# 系统文件
+.DS_Store
+Thumbs.db
 
-# Hardhat coverage reports
-/coverage
+# TypeScript
+*.tsbuildinfo
+
+# 临时文件
+*.tmp
+*.log
+
+# 敏感配置（如果有）
+.env
+.env.local
+
